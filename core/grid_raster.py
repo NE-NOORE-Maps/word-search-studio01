@@ -47,9 +47,10 @@ def render_grid_image(puzzle, style, cell_mm: float, dpi: int = 300):
     rows_n, cols_n = puzzle.rows, puzzle.cols
     cell_px = max(4, round(cell_mm / MM * dpi))
     w, h = cols_n * cell_px, rows_n * cell_px
-    lw = max(1, round(style.grid_line_width / MM * dpi))
-    lc = _rgb(style.grid_line_color)
-    letter_c = _rgb(style.letter_color)
+    raw_lw = getattr(style, "grid_line_width", 0.6)
+    lw = max(1, round(raw_lw / MM * dpi)) if raw_lw > 0 else 0
+    lc = _rgb(getattr(style, "grid_line_color", "#9da49f"))
+    letter_c = _rgb(getattr(style, "letter_color", "#202a26"))
 
     img = Image.new("RGB", (w, h), (255, 255, 255))
     d = ImageDraw.Draw(img)
@@ -60,30 +61,34 @@ def render_grid_image(puzzle, style, cell_mm: float, dpi: int = 300):
             if r % 2 == 1:
                 d.rectangle([0, r * cell_px, w, (r + 1) * cell_px], fill=(230, 230, 230))
 
-    cs = style.cell_style
-    if cs in ("boxes", "rounded_boxes"):
-        radius = round(cell_px * 0.18) if cs == "rounded_boxes" else 0
-        for r in range(rows_n):
-            for c in range(cols_n):
-                x0, y0 = c * cell_px, r * cell_px
-                box = [x0, y0, x0 + cell_px - 1, y0 + cell_px - 1]
-                if radius:
-                    d.rounded_rectangle(box, radius=radius, outline=lc, width=lw)
-                else:
-                    d.rectangle(box, outline=lc, width=lw)
-    elif cs == "grid":
-        for r in range(rows_n + 1):
-            y = min(r * cell_px, h - 1)
-            d.line([(0, y), (w, y)], fill=lc, width=lw)
-        for c in range(cols_n + 1):
-            x = min(c * cell_px, w - 1)
-            d.line([(x, 0), (x, h)], fill=lc, width=lw)
+    cs = getattr(style, "cell_style", "grid")
+    if lw > 0 and cs != "none":
+        if cs in ("boxes", "rounded_boxes"):
+            radius = round(cell_px * 0.20) if cs == "rounded_boxes" else 0
+            for r in range(rows_n):
+                for c in range(cols_n):
+                    x0, y0 = c * cell_px, r * cell_px
+                    box = [x0, y0, x0 + cell_px - 1, y0 + cell_px - 1]
+                    if radius:
+                        d.rounded_rectangle(box, radius=radius, outline=lc, width=lw)
+                    else:
+                        d.rectangle(box, outline=lc, width=lw)
+        elif cs == "grid":
+            for r in range(rows_n + 1):
+                y = min(r * cell_px, h - 1)
+                d.line([(0, y), (w, y)], fill=lc, width=lw)
+            for c in range(cols_n + 1):
+                x = min(c * cell_px, w - 1)
+                d.line([(x, 0), (x, h)], fill=lc, width=lw)
+        elif cs == "outer_border":
+            d.rectangle([0, 0, w - 1, h - 1], outline=lc, width=lw)
     # "none" => letters only.
 
     # Letters, centred in each cell.
-    letter_pt = style.letter_size_pt
-    font_px = round(letter_pt / 72.0 * dpi) if letter_pt else round(cell_px * 0.62)
-    font = ImageFont.truetype(_font_path(style.letter_font), font_px)
+    letter_pt = getattr(style, "letter_size_pt", None)
+    font_scale = getattr(style, "font_scale", 0.62)
+    font_px = round(letter_pt / 72.0 * dpi) if letter_pt else max(6, round(cell_px * font_scale))
+    font = ImageFont.truetype(_font_path(getattr(style, "letter_font", "DejaVu Sans")), font_px)
     for r in range(rows_n):
         for c in range(cols_n):
             ch = puzzle.grid[r][c]
@@ -114,12 +119,13 @@ def render_solution_image(puzzle, style, cell_mm: float, dpi: int = 300):
     rows_n, cols_n = puzzle.rows, puzzle.cols
     cell_px = max(4, round(cell_mm / MM * dpi))
     w, h = cols_n * cell_px, rows_n * cell_px
-    lw = max(1, round(style.grid_line_width / MM * dpi))
-    lc = _rgb(style.grid_line_color)
+    raw_lw = getattr(style, "grid_line_width", 0.6)
+    lw = max(1, round(raw_lw / MM * dpi)) if raw_lw > 0 else 0
+    lc = _rgb(getattr(style, "grid_line_color", "#9da49f"))
     
-    sol_style = style.solution_style
-    sol_color = _rgb(style.solution_color)
-    letter_c = _rgb(style.letter_color)
+    sol_style = getattr(style, "solution_style", "capsule")
+    sol_color = _rgb(getattr(style, "solution_color", "#202a26"))
+    letter_c = _rgb(getattr(style, "letter_color", "#202a26"))
 
     img = Image.new("RGB", (w, h), (255, 255, 255))
     d = ImageDraw.Draw(img)
@@ -157,19 +163,35 @@ def render_solution_image(puzzle, style, cell_mm: float, dpi: int = 300):
     img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
     d = ImageDraw.Draw(img)
 
-    for r in range(rows_n + 1):
-        y = min(r * cell_px, h - 1)
-        d.line([(0, y), (w, y)], fill=lc, width=lw)
-    for c in range(cols_n + 1):
-        x = min(c * cell_px, w - 1)
-        d.line([(x, 0), (x, h)], fill=lc, width=lw)
+    cs = getattr(style, "cell_style", "grid")
+    if lw > 0 and cs != "none":
+        if cs in ("boxes", "rounded_boxes"):
+            radius = round(cell_px * 0.20) if cs == "rounded_boxes" else 0
+            for r in range(rows_n):
+                for c in range(cols_n):
+                    x0, y0 = c * cell_px, r * cell_px
+                    box = [x0, y0, x0 + cell_px - 1, y0 + cell_px - 1]
+                    if radius:
+                        d.rounded_rectangle(box, radius=radius, outline=lc, width=lw)
+                    else:
+                        d.rectangle(box, outline=lc, width=lw)
+        elif cs == "grid":
+            for r in range(rows_n + 1):
+                y = min(r * cell_px, h - 1)
+                d.line([(0, y), (w, y)], fill=lc, width=lw)
+            for c in range(cols_n + 1):
+                x = min(c * cell_px, w - 1)
+                d.line([(x, 0), (x, h)], fill=lc, width=lw)
+        elif cs == "outer_border":
+            d.rectangle([0, 0, w - 1, h - 1], outline=lc, width=lw)
 
-    letter_pt = style.letter_size_pt
-    font_px = round(letter_pt / 72.0 * dpi) if letter_pt else round(cell_px * 0.62)
-    font_normal = ImageFont.truetype(_font_path(style.letter_font), font_px)
+    letter_pt = getattr(style, "letter_size_pt", None)
+    font_scale = getattr(style, "font_scale", 0.62)
+    font_px = round(letter_pt / 72.0 * dpi) if letter_pt else max(6, round(cell_px * font_scale))
+    font_normal = ImageFont.truetype(_font_path(getattr(style, "letter_font", "DejaVu Sans")), font_px)
     
     # Simple boldify for PIL
-    b_font = style.letter_font
+    b_font = getattr(style, "letter_font", "DejaVu Sans")
     if "Bold" not in b_font and not b_font.endswith("-Bold"):
         if b_font == "DejaVu Sans": b_font = "DejaVu Sans Bold"
         elif b_font == "DejaVu Serif": b_font = "DejaVu Serif Bold"
