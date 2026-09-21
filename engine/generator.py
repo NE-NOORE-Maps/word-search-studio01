@@ -184,6 +184,7 @@ def _scrub_bad_words(
     blacklist: frozenset[str],
     rng: random.Random,
     max_passes: int = 8,
+    alphabet: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
 ) -> int:
     """Re-roll fill letters that accidentally spell blacklisted words.
 
@@ -212,7 +213,7 @@ def _scrub_bad_words(
                                 continue  # all letters are intended placements
                             r, c = rng.choice(editable)
                             cur = grid[r][c]
-                            choices = [ch for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if ch != cur]
+                            choices = [ch for ch in alphabet if ch != cur] or [ch for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if ch != cur]
                             grid[r][c] = rng.choice(choices)
                             changes += 1
                             dirty = True
@@ -226,6 +227,7 @@ def _scrub_duplicate_words(
     placements: list["Placement"],
     rng: random.Random,
     max_passes: int = 8,
+    alphabet: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
 ) -> int:
     """Ensure each placed word appears in the grid only at its own placement.
 
@@ -263,9 +265,8 @@ def _scrub_duplicate_words(
                             if editable:
                                 r, c = rng.choice(editable)
                                 cur = grid[r][c]
-                                grid[r][c] = rng.choice(
-                                    [ch for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if ch != cur]
-                                )
+                                choices = [ch for ch in alphabet if ch != cur] or [ch for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if ch != cur]
+                                grid[r][c] = rng.choice(choices)
                                 changes += 1
                                 dirty = True
                                 s = "".join(grid[r2][c2] for (r2, c2) in coords)
@@ -330,10 +331,10 @@ def generate_puzzle(
     if cfg.avoid_bad_words:
         protected = {rc for p in best_placements for rc in p.cells()}
         blacklist = build_blacklist(cfg.extra_blacklist)
-        _scrub_bad_words(best_grid, protected, blacklist, rng)
+        _scrub_bad_words(best_grid, protected, blacklist, rng, alphabet=cfg.fill_alphabet)
 
     if cfg.avoid_duplicate_words:
-        _scrub_duplicate_words(best_grid, best_placements, rng)
+        _scrub_duplicate_words(best_grid, best_placements, rng, alphabet=cfg.fill_alphabet)
 
     skipped = too_long + best_unplaced
     return Puzzle(

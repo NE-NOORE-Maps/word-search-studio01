@@ -5,6 +5,7 @@ import io
 import os
 import sys
 import tempfile
+import unicodedata
 import zipfile
 from collections import defaultdict
 from pathlib import Path
@@ -34,26 +35,6 @@ except ModuleNotFoundError:
 
 st.set_page_config(page_title="Word Search Studio", page_icon="🧩", layout="wide", initial_sidebar_state="collapsed")
 
-THEMED_CSV = """theme,word
-Big Cats,LION
-Big Cats,TIGER
-Big Cats,LEOPARD
-Farm Animals,COW
-Farm Animals,SHEEP
-Farm Animals,HORSE
-Ocean,WHALE
-Ocean,SHARK
-Ocean,DOLPHIN
-"""
-SIMPLE_CSV = """word
-LION
-TIGER
-LEOPARD
-ZEBRA
-GIRAFFE
-ELEPHANT
-MONKEY
-"""
 GOOGLE_ADSENSE_CLIENT = os.getenv("GOOGLE_ADSENSE_CLIENT", "")
 GOOGLE_ADSENSE_SLOT = os.getenv("GOOGLE_ADSENSE_SLOT", "")
 
@@ -71,10 +52,182 @@ def render_square_ad():
         st.markdown('''<div class="ad-placeholder"><div class="ad-label">ADVERTISEMENT</div><div class="ad-square">300 × 250<br><span>Add your Google AdSense details after hosting</span></div></div>''', unsafe_allow_html=True)
 
 
-PROMPTS = {
-    "Themed CSV": """Create a themed word-search CSV for a children's activity book.\nReturn CSV only with exactly two columns: theme,word.\nCreate 10 themes with 12 unique uppercase words per theme.\nTheme: [INSERT THEME]\nDifficulty: [easy, medium, or hard]\nUse only family-friendly words, 3-12 letters, letters only, no spaces or punctuation.\nDo not add explanations or markdown.""",
-    "Simple CSV": """Create a simple word-search CSV for a children's activity book.\nReturn CSV only with exactly one column: word.\nCreate [INSERT NUMBER] unique uppercase words about: [INSERT TOPIC]\nDifficulty: [easy, medium, or hard]\nUse only family-friendly words, 3-12 letters, letters only, no spaces or punctuation.\nDo not add explanations or markdown.""",
-    "Pasted word list": """Create a clean word list for a word-search puzzle.\nReturn one uppercase word per line and nothing else.\nTopic: [INSERT TOPIC]\nNumber of words: [INSERT NUMBER]\nUse family-friendly words, 3-12 letters, letters only, no spaces or punctuation.\nDo not add numbering, bullets, explanations, or markdown.""",
+LANGUAGE_CONFIGS = {
+    "English": {
+        "flag": "🇬🇧",
+        "label": "🇬🇧 English",
+        "default_theme": "Animals",
+        "word_bank_title": "Word bank",
+        "fill_alphabet": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "badge_info": "Standard Latin alphabet (A–Z).",
+        "sample_words": "LION\nTIGER\nLEOPARD\nELEPHANT\nGIRAFFE\nMONKEY\nZEBRA\nKANGAROO\nPANDA\nDOLPHIN\nBEAR\nWOLF",
+        "themed_csv": """theme,word
+Big Cats,LION
+Big Cats,TIGER
+Big Cats,LEOPARD
+Farm Animals,COW
+Farm Animals,SHEEP
+Farm Animals,HORSE
+Ocean,WHALE
+Ocean,SHARK
+Ocean,DOLPHIN
+""",
+        "simple_csv": """word
+LION
+TIGER
+LEOPARD
+ZEBRA
+GIRAFFE
+ELEPHANT
+MONKEY
+BEAR
+""",
+        "prompts": {
+            "Themed CSV": """Create a themed word-search CSV for a children's activity book.\nReturn CSV only with exactly two columns: theme,word.\nCreate 10 themes with 12 unique uppercase words per theme.\nTheme: [INSERT THEME]\nDifficulty: [easy, medium, or hard]\nUse only family-friendly words, 3-12 letters, letters only, no spaces or punctuation.\nDo not add explanations or markdown.""",
+            "Simple CSV": """Create a simple word-search CSV for a children's activity book.\nReturn CSV only with exactly one column: word.\nCreate [INSERT NUMBER] unique uppercase words about: [INSERT TOPIC]\nDifficulty: [easy, medium, or hard]\nUse only family-friendly words, 3-12 letters, letters only, no spaces or punctuation.\nDo not add explanations or markdown.""",
+            "Pasted word list": """Create a clean word list for a word-search puzzle.\nReturn one uppercase word per line and nothing else.\nTopic: [INSERT TOPIC]\nNumber of words: [INSERT NUMBER]\nUse family-friendly words, 3-12 letters, letters only, no spaces or punctuation.\nDo not add numbering, bullets, explanations, or markdown.""",
+        },
+    },
+    "German (Deutsch)": {
+        "flag": "🇩🇪",
+        "label": "🇩🇪 German (Deutsch)",
+        "default_theme": "Tiere",
+        "word_bank_title": "Wortliste",
+        "fill_alphabet": "ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ",
+        "badge_info": "Umlaute Ä, Ö, Ü unterstützt · ß wird automatisch als SS geschrieben.",
+        "sample_words": "LÖWE\nTIGER\nLEOPARD\nELEFANT\nGIRAFFE\nAFFE\nZEBRA\nBÄR\nWOLF\nSCHLANGE\nHIRSCH\nFUCHS",
+        "themed_csv": """theme,word
+Raubkatzen,LÖWE
+Raubkatzen,TIGER
+Raubkatzen,LEOPARD
+Bauernhof,KUH
+Bauernhof,SCHAF
+Bauernhof,PFERD
+Waldtiere,BÄR
+Waldtiere,WOLF
+Waldtiere,HIRSCH
+""",
+        "simple_csv": """word
+LÖWE
+TIGER
+LEOPARD
+ZEBRA
+GIRAFFE
+ELEFANT
+BÄR
+FUCHS
+""",
+        "prompts": {
+            "Themed CSV": """Erstelle eine Wortsuch-CSV (Buchstabensalat) für ein deutsches Rätselbuch.\nGib nur CSV mit genau zwei Spalten zurück: theme,word.\nErstelle 10 Themen mit je 12 einzigartigen Wörtern in Großbuchstaben pro Thema.\nThema: [THEMA HIER EINFÜGEN]\nSchwierigkeitsgrad: [easy, medium, oder hard]\nVerwende deutsche Wörter, 3-12 Buchstaben, nur Buchstaben (Ä, Ö, Ü erlaubt, ß als SS).\nKeine Erklärungen oder Markdown hinzufügen.""",
+            "Simple CSV": """Erstelle eine einfache Wortsuch-CSV für ein deutsches Rätselbuch.\nGib nur CSV mit genau einer Spalte zurück: word.\nErstelle [ANZAHL] einzigartige Wörter in Großbuchstaben über: [THEMA]\nSchwierigkeitsgrad: [easy, medium, oder hard]\nVerwende familienfreundliche Wörter, 3-12 Buchstaben (Ä, Ö, Ü erlaubt, ß als SS).\nKeine Erklärungen oder Markdown hinzufügen.""",
+            "Pasted word list": """Erstelle eine saubere Wortliste für ein deutsches Suchsel (Wortsuchspiel).\nGib genau ein deutsches Wort in Großbuchstaben pro Zeile zurück und sonst nichts.\nThema: [THEMA]\nAnzahl der Wörter: [ANZAHL]\nVerwende Wörter mit 3-12 Buchstaben (Ä, Ö, Ü erlaubt, ß als SS).\nKeine Nummerierung, Aufzählungspunkte oder Erklärungen hinzufügen.""",
+        },
+    },
+    "Spanish (Español)": {
+        "flag": "🇪🇸",
+        "label": "🇪🇸 Spanish (Español)",
+        "default_theme": "Animales",
+        "word_bank_title": "Lista de palabras",
+        "fill_alphabet": "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ",
+        "badge_info": "Letra oficial Ñ incluida en alfabeto y relleno · Acentos adaptados.",
+        "sample_words": "LEÓN\nTIGRE\nLEOPARDO\nELEFANTE\nJIRAFA\nMONO\nCEBRA\nOSO\nLOBO\nSERPIENTE\nDELFÍN\nBALLENA",
+        "themed_csv": """theme,word
+Grandes Felinos,LEÓN
+Grandes Felinos,TIGRE
+Grandes Felinos,LEOPARDO
+Granja,VACA
+Granja,OVEJA
+Granja,CABALLO
+Océano,BALLENA
+Océano,TIBURÓN
+Océano,DELFÍN
+""",
+        "simple_csv": """word
+LEÓN
+TIGRE
+LEOPARDO
+CEBRA
+JIRAFA
+ELEFANTE
+MONO
+OSO
+""",
+        "prompts": {
+            "Themed CSV": """Crea un archivo CSV de sopa de letras para un libro de pasatiempos en español.\nDevuelve solo el CSV con exactamente dos columnas: theme,word.\nCrea 10 temas con 12 palabras únicas en mayúsculas por tema.\nTema: [INSERTAR TEMA]\nDificultad: [easy, medium, o hard]\nUsa palabras en español familiares, de 3 a 12 letras (la letra Ñ está permitida).\nSin explicaciones ni formato markdown.""",
+            "Simple CSV": """Crea un archivo CSV simple de sopa de letras para un libro de pasatiempos en español.\nDevuelve solo el CSV con exactamente una columna: word.\nCrea [INSERTAR NÚMERO] palabras únicas en mayúsculas sobre: [INSERTAR TEMA]\nDificultad: [easy, medium, o hard]\nUsa palabras familiares de 3 a 12 letras (la letra Ñ está permitida).\nSin explicaciones ni formato markdown.""",
+            "Pasted word list": """Crea una lista de palabras para una sopa de letras en español.\nDevuelve una palabra en mayúsculas por línea y nada más.\nTema: [INSERTAR TEMA]\nNúmero de palabras: [INSERTAR NÚMERO]\nPalabras en español de 3 a 12 letras (la letra Ñ está permitida).\nSin números, viñetas ni explicaciones.""",
+        },
+    },
+    "French (Français)": {
+        "flag": "🇫🇷",
+        "label": "🇫🇷 French (Français)",
+        "default_theme": "Animaux",
+        "word_bank_title": "Liste de mots",
+        "fill_alphabet": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "badge_info": "Mots mêlés en français · Supporte les accents ou normalisation A–Z.",
+        "sample_words": "LION\nTIGRE\nLÉOPARD\nÉLÉPHANT\nGIRAFE\nSINGE\nZÈBRE\nOURS\nLOUP\nSERPENT\nDAUPHIN\nBALEINE",
+        "themed_csv": """theme,word
+Félins,LION
+Félins,TIGRE
+Félins,LÉOPARD
+Ferme,VACHE
+Ferme,MOUTON
+Ferme,CHEVAL
+Océan,BALEINE
+Océan,REQUIN
+Océan,DAUPHIN
+""",
+        "simple_csv": """word
+LION
+TIGRE
+LÉOPARD
+ZÈBRE
+GIRAFE
+ÉLÉPHANT
+SINGE
+OURS
+""",
+        "prompts": {
+            "Themed CSV": """Créez un fichier CSV de mots mêlés pour un livre d'activités en français.\nRetournez uniquement le CSV avec exactement deux colonnes : theme,word.\nCréez 10 thèmes avec 12 mots uniques en majuscules par thème.\nThème : [INSÉRER LE THÈME]\nDifficulté : [easy, medium, ou hard]\nUtilisez des mots français adaptés aux familles, 3 à 12 lettres, sans espaces ni ponctuation.\nPas d'explications ni de balisage markdown.""",
+            "Simple CSV": """Créez un simple fichier CSV de mots mêlés pour un livre d'activités en français.\nRetournez uniquement le CSV avec exactement une colonne : word.\nCréez [INSÉRER LE NOMBRE] mots uniques en majuscules sur : [INSÉRER LE SUJET]\nDifficulté : [easy, medium, ou hard]\nUtilisez des mots français de 3 à 12 lettres.\nPas d'explications ni de balisage markdown.""",
+            "Pasted word list": """Créez une liste de mots pour un jeu de mots mêlés en français.\nRetournez un mot en majuscules par ligne et rien d'autre.\nSujet : [INSÉRER LE SUJET]\nNombre de mots : [INSÉRER LE NOMBRE]\nMots français de 3 à 12 lettres, uniquement des lettres.\nPas de numérotation, puces ni explications.""",
+        },
+    },
+    "Italian (Italiano)": {
+        "flag": "🇮🇹",
+        "label": "🇮🇹 Italian (Italiano)",
+        "default_theme": "Animali",
+        "word_bank_title": "Elenco parole",
+        "fill_alphabet": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "badge_info": "Crucipuzzle in italiano · Lettere A–Z con accenti adattati.",
+        "sample_words": "LEONE\nTIGRE\nLEOPARDO\nELEFANTE\nGIRAFFA\nSCIMMIA\nZEBRA\nORSO\nLUPO\nSERPENTE\nDELFINO\nBALENA",
+        "themed_csv": """theme,word
+Grandi Felini,LEONE
+Grandi Felini,TIGRE
+Grandi Felini,LEOPARDO
+Fattoria,MUCCA
+Fattoria,PECORA
+Fattoria,CAVALLO
+Oceano,BALENA
+Oceano,SQUALO
+Oceano,DELFINO
+""",
+        "simple_csv": """word
+LEONE
+TIGRE
+LEOPARDO
+ZEBRA
+GIRAFFA
+ELEFANTE
+SCIMMIA
+ORSO
+""",
+        "prompts": {
+            "Themed CSV": """Crea un file CSV per crucipuzzle (cerca parole) per un libro di enigmistica in italiano.\nRestituisci solo il CSV con esattamente due colonne: theme,word.\nCrea 10 temi con 12 parole uniche in maiuscolo per tema.\nTema: [INSERISCI TEMA]\nDifficoltà: [easy, medium, o hard]\nUsa parole in italiano per famiglie, 3-12 lettere, solo lettere, senza spazi o punteggiatura.\nNessuna spiegazione né markdown.""",
+            "Simple CSV": """Crea un semplice file CSV per crucipuzzle in italiano.\nRestituisci solo il CSV con esattamente una colonna: word.\nCrea [INSERISCI NUMERO] parole uniche in maiuscolo su: [INSERISCI ARGOMENTO]\nDifficoltà: [easy, medium, o hard]\nUsa parole in italiano di 3-12 lettere.\nNessuna spiegazione né markdown.""",
+            "Pasted word list": """Crea un elenco pulito di parole per un crucipuzzle in italiano.\nRestituisci una parola in maiuscolo per riga e nient'altro.\nArgomento: [INSERISCI ARGOMENTO]\nNumero di parole: [INSERISCI NUMERO]\nParole in italiano di 3-12 lettere, solo lettere.\nNessuna numerazione, elenchi puntati o spiegazioni.""",
+        },
+    },
 }
 
 THEME_PRESETS = {
@@ -135,17 +288,22 @@ st.markdown("""
 :root { --ink:#14251f; --muted:#64746d; --cream:#f7f4ee; --primary:#17352b; }
 .stApp { background:var(--cream); color:var(--ink); }
 [data-testid="stHeader"] { visibility: hidden !important; }
-.block-container { max-width:1540px; padding:0.7rem 1.25rem 1.5rem; }
-.hero { background:linear-gradient(135deg,#17352b,#285b4a); color:white; border-radius:16px; padding:14px 22px; margin-bottom:9px; }
-.hero h1 { margin:0; font-size:2rem; letter-spacing:-.04em; }
-.hero p { margin:.35rem 0 0; color:#d9ebe1; font-size:.95rem; }
-.card { background:white; border:1px solid #e6e1d7; border-radius:14px; padding:14px 16px; box-shadow:0 4px 14px rgba(20,37,31,.04); }
-.smallcaps { color:var(--muted); font-size:.68rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
-.section-title { font-size:1rem; font-weight:800; margin:0 0 .35rem; }
+.block-container { max-width:1560px; padding:0.65rem 1.25rem 1.5rem; }
+.hero { background:linear-gradient(135deg,#17352b,#285b4a); color:white; border-radius:14px; padding:12px 20px; margin-bottom:10px; }
+.hero h1 { margin:0; font-size:1.9rem; letter-spacing:-.04em; }
+.hero p { margin:.25rem 0 0; color:#d9ebe1; font-size:.9rem; }
+
+/* Control Panel container & cards */
+.ctrl-card { background:white; border:1px solid #e3ded5; border-radius:12px; padding:12px 14px; margin-bottom:10px; box-shadow:0 3px 10px rgba(20,37,31,.03); }
+.lang-badge { background:#e7efe9; border:1px solid #c7dcce; color:#184534; border-radius:8px; padding:6px 10px; font-size:.78rem; font-weight:600; line-height:1.35; margin:.35rem 0 .5rem; }
+.panel-step { color:#285b4a; font-size:.72rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; margin-bottom:3px; }
+.smallcaps { color:var(--muted); font-size:.66rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+.section-title { font-size:.95rem; font-weight:800; margin:0 0 .3rem; color:#14251f; }
+
 div[data-testid="stMetricValue"] { color:var(--ink); font-size:1.02rem; line-height:1.05; font-weight:800; }
-div[data-testid="stMetricLabel"] { font-size:.66rem; margin-bottom:0; font-weight:700; color:var(--muted); text-transform:uppercase; }
-div[data-testid="stMetric"] { background:white; border:1px solid #e7e2d9; border-radius:10px; padding:.35rem .65rem; }
-.stButton > button, .stDownloadButton > button { border-radius:9px; font-weight:700; }
+div[data-testid="stMetricLabel"] { font-size:.64rem; margin-bottom:0; font-weight:700; color:var(--muted); text-transform:uppercase; }
+div[data-testid="stMetric"] { background:white; border:1px solid #e7e2d9; border-radius:10px; padding:.32rem .6rem; }
+.stButton > button, .stDownloadButton > button { border-radius:8px; font-weight:700; }
 .ad-placeholder { width:300px; height:250px; border:1px dashed #c8cec8; background:#f2f3f0; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#7b857f; margin:.5rem auto 0; }
 .ad-label { font-size:.58rem; letter-spacing:.14em; font-weight:800; margin-bottom:.45rem; }
 .ad-square { text-align:center; font-size:.9rem; font-weight:700; line-height:1.5; }
@@ -154,23 +312,78 @@ div[data-testid="stMetric"] { background:white; border:1px solid #e7e2d9; border
 .word-bank-item { color:#315e4d; font-size:.78rem; line-height:1.3; padding:.08rem 0; }
 [data-testid="stImage"] img { max-height:64vh; width:auto !important; max-width:100%; object-fit:contain; border-radius:8px; }
 .theme-badge { background:#e8f0eb; border:1px solid #c9ded3; color:#1f4d3c; border-radius:8px; padding:6px 10px; font-size:.8rem; margin-bottom:.45rem; }
-.stTabs [data-baseweb="tab-list"] { gap: 6px; }
+.stTabs [data-baseweb="tab-list"] { gap: 6px; margin-bottom: 8px; }
 .stTabs [data-baseweb="tab"] { border-radius: 8px 8px 0 0; font-weight: 700; font-size: 0.88rem; padding: 6px 14px; }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="hero"><div class="smallcaps">Customizable puzzle production tool</div><h1>Word Search Studio</h1><p>Tune dynamic grid sizes, line styles, font scaling, audience themes (kids, adults, seniors), and export Canva Bulk workbooks.</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="hero"><div class="smallcaps">Multilingual puzzle production studio</div><h1>Word Search Studio</h1><p>Generate books in English, German, French, Spanish, and Italian with tailored alphabets, dynamic dimensions, and custom styles.</p></div>', unsafe_allow_html=True)
 
 
-def parse_input(uploaded, mode, raw_text, default_theme):
+def clean_word_for_language(raw_word: str, language: str, accent_mode: str = "Standard Book Mode") -> str:
+    """Normalize and clean a word according to the language and accent preferences."""
+    w = (raw_word or "").strip().upper()
+    if not w:
+        return ""
+    
+    # Always convert German Eszett to SS for word search
+    w = w.replace("ß", "SS").replace("ẞ", "SS")
+
+    if accent_mode == "Preserve Exact Accents":
+        # Keep any valid unicode letter (Ä, Ö, Ü, Ñ, É, È, Ê, Ç, À, Ô, etc.)
+        return "".join(ch for ch in w if ch.isalpha())
+
+    if accent_mode == "Strip All Accents (A-Z)":
+        # Decompose all diacritics to basic A-Z
+        nfkd = unicodedata.normalize("NFKD", w)
+        return "".join(ch for ch in nfkd if "A" <= ch <= "Z")
+
+    # "Standard Book Mode": Keep language-specific distinct letters, flatten remaining vowel accents
+    if "Spanish" in language:
+        # Preserve Ñ / ñ, flatten other accents (Á->A, É->E, etc.)
+        out = []
+        for ch in w:
+            if ch == "Ñ":
+                out.append("Ñ")
+            else:
+                nfkd = unicodedata.normalize("NFKD", ch)
+                letters = [c for c in nfkd if "A" <= c <= "Z"]
+                if letters:
+                    out.append(letters[0])
+        return "".join(out)
+    elif "German" in language:
+        # Preserve Ä, Ö, Ü, flatten any other stray accents
+        out = []
+        for ch in w:
+            if ch in ("Ä", "Ö", "Ü"):
+                out.append(ch)
+            else:
+                nfkd = unicodedata.normalize("NFKD", ch)
+                letters = [c for c in nfkd if "A" <= c <= "Z"]
+                if letters:
+                    out.append(letters[0])
+        return "".join(out)
+    else:
+        # English, French, Italian: in standard word search grids, accents are flattened to A-Z
+        nfkd = unicodedata.normalize("NFKD", w)
+        return "".join(ch for ch in nfkd if "A" <= ch <= "Z")
+
+
+def parse_input(uploaded, mode, raw_text, default_theme, language="English", accent_mode="Standard Book Mode"):
     groups = defaultdict(list)
     if mode == "Paste a word list":
-        words = [x.strip() for x in raw_text.replace(";", "\n").splitlines() if x.strip()]
-        groups[default_theme.strip() or "Word Search"] = words
+        lines = raw_text.replace(";", "\n").splitlines()
+        for x in lines:
+            cw = clean_word_for_language(x, language, accent_mode)
+            if len(cw) >= 3:
+                groups[default_theme.strip() or "Word Search"].append(cw)
         return groups
     if not uploaded:
-        sample_words = [x.strip() for x in raw_text.replace(";", "\n").splitlines() if x.strip()]
-        groups[default_theme.strip() or "My Theme"] = sample_words
+        lines = raw_text.replace(";", "\n").splitlines()
+        for x in lines:
+            cw = clean_word_for_language(x, language, accent_mode)
+            if len(cw) >= 3:
+                groups[default_theme.strip() or "My Theme"].append(cw)
         return groups
     rows = list(csv.reader(io.StringIO(uploaded.getvalue().decode("utf-8-sig", errors="replace"))))
     if not rows:
@@ -180,12 +393,16 @@ def parse_input(uploaded, mode, raw_text, default_theme):
         ti, wi = header.index("theme"), header.index("word")
         for row in rows[1:]:
             if len(row) > max(ti, wi) and row[wi].strip():
-                groups[row[ti].strip() or default_theme].append(row[wi].strip())
+                cw = clean_word_for_language(row[wi].strip(), language, accent_mode)
+                if len(cw) >= 3:
+                    groups[row[ti].strip() or default_theme].append(cw)
     else:
         start = 1 if rows[0] and rows[0][0].strip().lower() in {"word", "words"} else 0
         for row in rows[start:]:
             if row and row[0].strip():
-                groups[default_theme.strip() or "Word Search"].append(row[0].strip())
+                cw = clean_word_for_language(row[0].strip(), language, accent_mode)
+                if len(cw) >= 3:
+                    groups[default_theme.strip() or "Word Search"].append(cw)
     return groups
 
 
@@ -225,11 +442,11 @@ def render_png(puzzle, bank_columns=2, show_bank=True, solution=False, compact=F
     return render_grid_image(puzzle, style, cell_mm=cell_mm, dpi=dpi)
 
 
-def render_word_bank(words, columns=2):
+def render_word_bank(words, columns=2, title="Word bank"):
     """Show the word bank as separate UI text, never inside the grid image."""
     if not words:
         return
-    st.markdown('<div class="word-bank-title">Word bank</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="word-bank-title">{title}</div>', unsafe_allow_html=True)
     bank_cols = st.columns(max(1, min(5, columns)), gap="small")
     for index, word in enumerate(sorted(words)):
         bank_cols[index % len(bank_cols)].markdown(f'<div class="word-bank-item">{word}</div>', unsafe_allow_html=True)
@@ -316,7 +533,14 @@ def build_workbooks(puzzles, out_dir, show_bank, bank_columns, solutions_per_pag
     return canva_path, solutions_path, zip_path
 
 
-# Initialize session state for theme and custom styling options
+# Initialize session state for language, themes, and styling
+if "selected_language" not in st.session_state:
+    st.session_state["selected_language"] = "English"
+if "last_selected_language" not in st.session_state:
+    st.session_state["last_selected_language"] = "English"
+    st.session_state["default_theme"] = LANGUAGE_CONFIGS["English"]["default_theme"]
+    st.session_state["raw_words"] = LANGUAGE_CONFIGS["English"]["sample_words"]
+
 if "audience_theme" not in st.session_state:
     st.session_state["audience_theme"] = "👔 Adult Classic"
 if "last_audience_theme" not in st.session_state:
@@ -330,48 +554,107 @@ if "last_audience_theme" not in st.session_state:
     st.session_state["letter_color"] = init_p["letter_color"]
     st.session_state["solution_style"] = init_p["solution_style"]
 
-# Main layout
-controls, preview_area = st.columns([1.02, 1.45], gap="medium")
+# Main layout: Left controls panel & right preview area
+controls, preview_area = st.columns([1.04, 1.42], gap="medium")
 
 with controls:
+    # -------------------------------------------------------------
+    # 1. LANGUAGE SELECTION (First option before words input)
+    # -------------------------------------------------------------
+    st.markdown('<div class="ctrl-card"><div class="panel-step">Step 1 · Language & Alphabet</div><div class="section-title">🌍 Select Puzzle Language</div>', unsafe_allow_html=True)
+    
+    lang_names = list(LANGUAGE_CONFIGS.keys())
+    current_lang_idx = lang_names.index(st.session_state["selected_language"]) if st.session_state["selected_language"] in lang_names else 0
+    
+    selected_language = st.selectbox(
+        "Language",
+        lang_names,
+        index=current_lang_idx,
+        label_visibility="collapsed",
+        key="lang_selector",
+        help="Select language. Prompts, sample words, themes, and fill alphabets adapt automatically.",
+    )
+
+    # When language changes, update defaults
+    if selected_language != st.session_state.get("last_selected_language"):
+        st.session_state["last_selected_language"] = selected_language
+        st.session_state["selected_language"] = selected_language
+        new_lang_cfg = LANGUAGE_CONFIGS[selected_language]
+        st.session_state["default_theme"] = new_lang_cfg["default_theme"]
+        st.session_state["raw_words"] = new_lang_cfg["sample_words"]
+
+    lang_cfg = LANGUAGE_CONFIGS[selected_language]
+    st.markdown(f'<div class="lang-badge">{lang_cfg["flag"]} <b>{selected_language}</b>: {lang_cfg["badge_info"]}</div>', unsafe_allow_html=True)
+
+    c_acc1, c_acc2 = st.columns([1.3, 0.7], gap="small")
+    with c_acc1:
+        accent_mode = st.selectbox(
+            "Accents & Diacritics",
+            ["Standard Book Mode", "Preserve Exact Accents", "Strip All Accents (A-Z)"],
+            index=0,
+            help="Standard Book Mode keeps official language letters (Ñ for Spanish, Ä/Ö/Ü for German) and flattens vowel accents. Preserve Exact keeps all accents typed.",
+        )
+    with c_acc2:
+        if st.button("🔄 Reset Sample", help=f"Reset theme and words to {selected_language} defaults"):
+            st.session_state["default_theme"] = lang_cfg["default_theme"]
+            st.session_state["raw_words"] = lang_cfg["sample_words"]
+            st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # -------------------------------------------------------------
+    # 2. TABS FOR WORDS, GRID SIZE, AND STYLES
+    # -------------------------------------------------------------
     tab_words, tab_grid, tab_style = st.tabs(["📝 Words & Content", "📐 Grid Dimensions", "🎨 Style & Audience"])
 
     with tab_words:
-        st.markdown('<div class="section-title">1. Content & Source</div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-step">Step 2 · Word Input & Theme</div>', unsafe_allow_html=True)
         mode = st.radio("Source", ["Import CSV", "Paste a word list"], horizontal=True)
-        default_theme = st.text_input("Theme / Title", "My Theme")
-        uploaded = st.file_uploader("CSV file", type=["csv"], disabled=mode != "Import CSV")
-        raw_text = st.text_area(
-            "Words",
-            "APPLE\nBANANA\nCHERRY\nORANGE\nPEAR\nSTRAWBERRY\nWATERMELON\nPINEAPPLE\nBLUEBERRY\nMANGO",
-            height=110,
-            disabled=mode != "Paste a word list",
+        
+        default_theme = st.text_input(
+            "Theme / Title",
+            value=st.session_state.get("default_theme", lang_cfg["default_theme"]),
+            help="Title of the puzzle page",
         )
+        st.session_state["default_theme"] = default_theme
 
+        uploaded = st.file_uploader(f"CSV file ({selected_language})", type=["csv"], disabled=mode != "Import CSV")
+        
+        raw_text = st.text_area(
+            f"Words ({selected_language})",
+            value=st.session_state.get("raw_words", lang_cfg["sample_words"]),
+            height=120,
+            disabled=mode != "Paste a word list",
+            help="Enter one word per line or separated by semicolons. Letters only.",
+        )
+        if mode == "Paste a word list":
+            st.session_state["raw_words"] = raw_text
+
+        st.markdown('<div class="panel-step" style="margin-top:.45rem">Step 3 · Puzzle Rules</div>', unsafe_allow_html=True)
         c_d1, c_d2 = st.columns(2, gap="small")
         with c_d1:
             difficulty = st.selectbox("Difficulty", ["easy", "medium", "hard"], index=1, help="Easy = forward (E, S) only; Medium = forward & diagonals; Hard = all 8 directions with reverse.")
         with c_d2:
             seed = st.number_input("Seed", min_value=0, value=42, step=1, help="Deterministic seed for reproducible puzzle layouts.")
 
-        st.markdown('<div class="section-title" style="margin-top:.45rem">Templates & Samples</div>', unsafe_allow_html=True)
-        ex1, ex2 = st.columns(2, gap="small")
-        with ex1:
-            st.download_button("Themed CSV sample", THEMED_CSV, "themed_word_search_example.csv", "text/csv", use_container_width=True)
-        with ex2:
-            st.download_button("Simple CSV sample", SIMPLE_CSV, "simple_word_search_example.csv", "text/csv", use_container_width=True)
+        with st.expander(f"📥 Sample CSVs & AI Prompts ({selected_language})", expanded=False):
+            ex1, ex2 = st.columns(2, gap="small")
+            with ex1:
+                st.download_button(f"Themed CSV ({lang_cfg['flag']})", lang_cfg["themed_csv"], f"themed_{lang_cfg['default_theme'].lower()}_sample.csv", "text/csv", use_container_width=True)
+            with ex2:
+                st.download_button(f"Simple CSV ({lang_cfg['flag']})", lang_cfg["simple_csv"], f"simple_{lang_cfg['default_theme'].lower()}_sample.csv", "text/csv", use_container_width=True)
+            
+            st.markdown(f"<div class='smallcaps' style='margin-top:.4rem;'>AI Prompts in {selected_language}</div>", unsafe_allow_html=True)
+            prompt_type = st.selectbox("Prompt template", list(lang_cfg["prompts"].keys()), label_visibility="collapsed")
+            st.code(lang_cfg["prompts"][prompt_type], language="text")
 
-        with st.expander("AI Prompt templates (copy & paste into ChatGPT/Claude)", expanded=False):
-            prompt_type = st.selectbox("Prompt template", list(PROMPTS), label_visibility="collapsed")
-            st.code(PROMPTS[prompt_type], language="text")
-
-        groups = parse_input(uploaded, mode, raw_text, default_theme)
+        groups = parse_input(uploaded, mode, raw_text, default_theme, selected_language, accent_mode)
         all_count = sum(len(v) for v in groups.values())
-        sample_note = " · Built-in sample" if not uploaded and mode == "Import CSV" else ""
-        st.markdown(f'<div class="card" style="margin-top:.5rem;"><div class="smallcaps">Input Status</div><b>{len(groups)} theme(s) · {all_count} word(s)</b><span style="color:#64746d;font-size:.8rem">{sample_note}</span></div>', unsafe_allow_html=True)
+        sample_note = f" · {lang_cfg['flag']} {selected_language} sample" if not uploaded and mode == "Import CSV" else ""
+        st.markdown(f'<div class="card" style="margin-top:.45rem;"><div class="smallcaps">Input Summary</div><b>{len(groups)} theme(s) · {all_count} valid word(s)</b><span style="color:#64746d;font-size:.8rem">{sample_note}</span></div>', unsafe_allow_html=True)
 
     with tab_grid:
-        st.markdown('<div class="section-title">2. Grid Size & Capacity</div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-step">Grid Sizing & Dimensions</div><div class="section-title">📐 Dimensions & Word Capacity</div>', unsafe_allow_html=True)
         grid_size_choice = st.selectbox(
             "Grid Dimensions",
             [
@@ -416,7 +699,7 @@ with controls:
 
         st.markdown(f"""
         <div class="card" style="margin-top:.4rem; padding:10px 14px;">
-            <div class="smallcaps">Grid Properties</div>
+            <div class="smallcaps">Grid Shape & Capacity</div>
             <b>{eff_rows} Rows × {eff_cols} Columns</b> ({eff_rows * eff_cols} total cells)<br>
             <span style="color:#56675f; font-size:0.8rem;">
                 Suggested capacity: ~{grid_capacity} words per page · {"Landscape / Rectangular" if eff_rows != eff_cols else "Square"} layout
@@ -425,7 +708,7 @@ with controls:
         """, unsafe_allow_html=True)
 
     with tab_style:
-        st.markdown('<div class="section-title">3. Audience & Styling</div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-step">Audience Themes & Visual Styling</div><div class="section-title">🎨 Theme & Line Appearance</div>', unsafe_allow_html=True)
 
         selected_audience = st.selectbox(
             "Audience Preset",
@@ -560,6 +843,11 @@ with controls:
                 disabled=include_solution_in_bulk,
             )
 
+# Determine fill alphabet based on language and accent mode
+active_fill_alphabet = lang_cfg["fill_alphabet"]
+if accent_mode == "Strip All Accents (A-Z)":
+    active_fill_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
 # Assemble active style object
 current_style = SimpleNamespace(
     cell_style=st.session_state["cell_style"],
@@ -575,17 +863,18 @@ current_style = SimpleNamespace(
 )
 
 @st.cache_data(show_spinner=False)
-def get_puzzles(groups_dict, diff_str, words_per_page, seed_val, grid_rows=None, grid_cols=None):
+def get_puzzles(groups_dict, diff_str, words_per_page, seed_val, grid_rows=None, grid_cols=None, fill_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
     cfg = PuzzleConfig(
         difficulty=Difficulty(diff_str),
         words_per_page=words_per_page,
         seed=int(seed_val),
         grid_rows=grid_rows,
         grid_cols=grid_cols,
+        fill_alphabet=fill_alphabet,
     )
     result = []
     for theme, words in groups_dict.items():
-        cleaned = [w for w in words if len("".join(ch for ch in w.upper() if ch.isalpha())) >= 3]
+        cleaned = [w for w in words if len(w) >= 3]
         chunks = [cleaned[start:start + words_per_page]
                   for start in range(0, len(cleaned), words_per_page)
                   if cleaned[start:start + words_per_page]]
@@ -599,11 +888,25 @@ def get_puzzles(groups_dict, diff_str, words_per_page, seed_val, grid_rows=None,
 
 with preview_area:
     if groups:
-        puzzles = get_puzzles(dict(groups), difficulty, words_per_page, seed, grid_rows, grid_cols)
+        puzzles = get_puzzles(
+            dict(groups),
+            difficulty,
+            words_per_page,
+            seed,
+            grid_rows,
+            grid_cols,
+            active_fill_alphabet,
+        )
         
-        # Clear old export files if parameters or styling change
-        puz_hash = hash(str(dict(groups)) + difficulty + str(words_per_page) + str(seed) + str(grid_rows) + str(grid_cols))
-        style_hash = hash(f"{current_style.cell_style}_{current_style.grid_line_width}_{current_style.grid_line_color}_{current_style.font_scale}_{current_style.letter_font}_{current_style.letter_color}_{current_style.solution_style}")
+        # Clear old export files if parameters, language, or styling change
+        puz_hash = hash(
+            str(dict(groups)) + difficulty + str(words_per_page) + str(seed) +
+            str(grid_rows) + str(grid_cols) + str(active_fill_alphabet) + selected_language
+        )
+        style_hash = hash(
+            f"{current_style.cell_style}_{current_style.grid_line_width}_{current_style.grid_line_color}_"
+            f"{current_style.font_scale}_{current_style.letter_font}_{current_style.letter_color}_{current_style.solution_style}"
+        )
         combined_hash = hash((puz_hash, style_hash))
 
         if st.session_state.get("last_combined_hash") != combined_hash:
@@ -615,7 +918,7 @@ with preview_area:
             # Metrics strip
             c1, c2, c3, c4, c5 = st.columns(5, gap="small")
             c1.metric("Pages", len(puzzles))
-            c2.metric("Theme", selected_audience.split(" ")[1] if " " in selected_audience else selected_audience)
+            c2.metric("Language", f"{lang_cfg['flag']} {selected_language.split(' ')[0]}")
             c3.metric("Grid Size", f"{puzzles[0].rows} × {puzzles[0].cols}")
             line_desc = "No Lines" if current_style.grid_line_width == 0 or current_style.cell_style == "none" else f"{current_style.cell_style.replace('_', ' ').title()} ({current_style.grid_line_width}mm)"
             c4.metric("Border", line_desc)
@@ -646,7 +949,7 @@ with preview_area:
                     use_container_width=True,
                 )
                 if show_bank:
-                    render_word_bank(puzzles[selected - 1].words, bank_columns)
+                    render_word_bank(puzzles[selected - 1].words, bank_columns, title=lang_cfg.get("word_bank_title", "Word bank"))
                 if puzzles[selected - 1].skipped:
                     st.warning("Some words could not be placed: " + ", ".join(puzzles[selected - 1].skipped))
 

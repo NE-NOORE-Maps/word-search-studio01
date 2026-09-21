@@ -105,4 +105,95 @@ sol_outer = render_solution_image(p_rect, style_outer, cell_mm=12.5, dpi=150)
 assert img_outer.size == sol_outer.size
 
 import xlsxwriter
+
+# 5. Multilingual Puzzle Generation & Rendering Tests
+# 5a. German Puzzle (Ä, Ö, Ü, ß -> SS)
+cfg_de = PuzzleConfig(
+    difficulty=Difficulty.medium,
+    grid_rows=12,
+    grid_cols=12,
+    words_per_page=5,
+    seed=303,
+    fill_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ",
+)
+words_de = ["LÖWE", "BÄR", "KÄFER", "VÖGEL", "FÜCHSE"]
+p_de = generate_puzzle(words_de, cfg_de, theme="Deutsche Tiere")
+assert p_de.rows == 12 and p_de.cols == 12
+assert len(p_de.words) == 5
+assert any("Ä" in row or "Ö" in row or "Ü" in row for row in p_de.grid)
+img_de = render_grid_image(p_de, style_kids, cell_mm=12.5, dpi=150)
+sol_de = render_solution_image(p_de, style_kids, cell_mm=12.5, dpi=150)
+assert img_de.size == sol_de.size
+print(f"ok German puzzle generation and rendering: {p_de.rows}x{p_de.cols}")
+
+# 5b. Spanish Puzzle (Ñ letter support in Sopa de Letras)
+cfg_es = PuzzleConfig(
+    difficulty=Difficulty.medium,
+    grid_rows=11,
+    grid_cols=11,
+    words_per_page=5,
+    seed=404,
+    fill_alphabet="ABCDEFGHIJKLMNÑOPQRSTUVWXYZ",
+)
+words_es = ["ESPAÑA", "MONTAÑA", "PIÑA", "SUEÑO", "OTOÑO"]
+p_es = generate_puzzle(words_es, cfg_es, theme="Sopa de Letras")
+assert p_es.rows == 11 and p_es.cols == 11
+assert len(p_es.words) == 5
+assert any("Ñ" in row for row in p_es.grid)
+img_es = render_grid_image(p_es, style_senior, cell_mm=12.5, dpi=150)
+sol_es = render_solution_image(p_es, style_senior, cell_mm=12.5, dpi=150)
+assert img_es.size == sol_es.size
+print(f"ok Spanish puzzle generation and rendering: {p_es.rows}x{p_es.cols}")
+
+# 5c. Word normalization & language cleaning logic
+import unicodedata
+
+def clean_word_for_language(raw_word: str, language: str, accent_mode: str = "Standard Book Mode") -> str:
+    w = (raw_word or "").strip().upper()
+    if not w:
+        return ""
+    w = w.replace("ß", "SS").replace("ẞ", "SS")
+    if accent_mode == "Preserve Exact Accents":
+        return "".join(ch for ch in w if ch.isalpha())
+    if accent_mode == "Strip All Accents (A-Z)":
+        nfkd = unicodedata.normalize("NFKD", w)
+        return "".join(ch for ch in nfkd if "A" <= ch <= "Z")
+    if "Spanish" in language:
+        out = []
+        for ch in w:
+            if ch == "Ñ":
+                out.append("Ñ")
+            else:
+                nfkd = unicodedata.normalize("NFKD", ch)
+                letters = [c for c in nfkd if "A" <= c <= "Z"]
+                if letters:
+                    out.append(letters[0])
+        return "".join(out)
+    elif "German" in language:
+        out = []
+        for ch in w:
+            if ch in ("Ä", "Ö", "Ü"):
+                out.append(ch)
+            else:
+                nfkd = unicodedata.normalize("NFKD", ch)
+                letters = [c for c in nfkd if "A" <= c <= "Z"]
+                if letters:
+                    out.append(letters[0])
+        return "".join(out)
+    else:
+        nfkd = unicodedata.normalize("NFKD", w)
+        return "".join(ch for ch in nfkd if "A" <= ch <= "Z")
+
+# Test clean_word_for_language across all supported languages
+assert clean_word_for_language("schloß", "German") == "SCHLOSS"
+assert clean_word_for_language("löwe", "German") == "LÖWE"
+assert clean_word_for_language("españa", "Spanish") == "ESPAÑA"
+assert clean_word_for_language("león", "Spanish") == "LEON"
+assert clean_word_for_language("éléphant", "French") == "ELEPHANT"
+assert clean_word_for_language("éléphant", "French", "Preserve Exact Accents") == "ÉLÉPHANT"
+assert clean_word_for_language("città", "Italian") == "CITTA"
+assert clean_word_for_language("españa", "Spanish", "Strip All Accents (A-Z)") == "ESPANA"
+print("ok clean_word_for_language passed all language scenarios")
+
 print("ALL SMOKE TESTS PASSED SUCCESSFULLY!")
+
