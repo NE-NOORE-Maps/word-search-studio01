@@ -1021,7 +1021,7 @@ with tab_ws:
                         lang_cfg["themed_csv"],
                         f"themed_{lang_cfg['default_theme'].lower()}_sample.csv",
                         "text/csv",
-                        use_container_width=True,
+                        width="stretch",
                     )
                 with ex2:
                     st.download_button(
@@ -1029,7 +1029,7 @@ with tab_ws:
                         lang_cfg["simple_csv"],
                         f"simple_{lang_cfg['default_theme'].lower()}_sample.csv",
                         "text/csv",
-                        use_container_width=True,
+                        width="stretch",
                     )
                 st.markdown(
                     f"<div class='smallcaps' style='margin-top:.4rem;'>AI Prompts in {selected_language}</div>",
@@ -1405,7 +1405,7 @@ with tab_ws:
                         page_img = render_word_search_solution_page_image(
                             sol_slice, current_style, solutions_per_page, sol_page_idx, total_sol_pages, dpi=160
                         )
-                        st.image(page_img, use_container_width=True)
+                        st.image(page_img, width="stretch")
                         st.caption(
                             f"📑 Book Solution Page Preview: showing {len(sol_slice)} of {solutions_per_page} solutions per page."
                         )
@@ -1428,7 +1428,7 @@ with tab_ws:
                                 compact=True,
                                 style=current_style,
                             ),
-                            use_container_width=True,
+                            width="stretch",
                         )
                         if show_bank:
                             render_word_bank(
@@ -1446,7 +1446,7 @@ with tab_ws:
                     else:
                         st.caption(f"Solutions: {solutions_per_page} per page (separate workbook)")
 
-                    if st.button("Generate Export Bundle", type="primary", use_container_width=True, key="ws_gen_btn"):
+                    if st.button("Generate Export Bundle", type="primary", width="stretch", key="ws_gen_btn"):
                         progress_bar = st.progress(0, text="Starting generation...")
                         out_dir = tempfile.mkdtemp(prefix="word_search_studio_")
                         canva_path, solutions_path, zip_path = build_workbooks(
@@ -1477,7 +1477,7 @@ with tab_ws:
                             st.session_state["canva_bytes"],
                             "word_search_canva_bulk.xlsx",
                             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True,
+                            width="stretch",
                             key="ws_down_canva",
                         )
                         if st.session_state.get("solutions_bytes"):
@@ -1486,7 +1486,7 @@ with tab_ws:
                                 st.session_state["solutions_bytes"],
                                 "word_search_solutions.xlsx",
                                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                use_container_width=True,
+                                width="stretch",
                                 key="ws_down_sol",
                             )
                         st.download_button(
@@ -1494,7 +1494,7 @@ with tab_ws:
                             st.session_state["zip_bytes"],
                             "word_search_canva_export.zip",
                             "application/zip",
-                            use_container_width=True,
+                            width="stretch",
                             key="ws_down_zip",
                         )
 
@@ -2112,7 +2112,7 @@ with tab_sudoku:
                         total_sdk_sol_pages,
                         dpi=160,
                     )
-                    st.image(page_img, use_container_width=True)
+                    st.image(page_img, width="stretch")
                     st.caption(
                         f"📑 Book Solution Page Preview: showing {len(sol_slice)} of {sdk_solutions_per_page} solutions per page (KDP layout)."
                     )
@@ -2136,7 +2136,7 @@ with tab_sudoku:
                         include_header=sdk_embed_header_in_img,
                     )
 
-                    st.image(sdk_img, use_container_width=True)
+                    st.image(sdk_img, width="stretch")
 
                     if active_p.wordoku_word:
                         st.markdown(
@@ -2170,7 +2170,7 @@ with tab_sudoku:
                         f"Book Trim: {sdk_trim_choice.split(' ')[0]} · {sdk_solutions_per_page} solutions/page · 300 DPI print-ready"
                     )
 
-                if st.button("Generate Sudoku Bundle", type="primary", use_container_width=True, key="sdk_gen_btn"):
+                if st.button("Generate Sudoku Bundle", type="primary", width="stretch", key="sdk_gen_btn"):
                     sdk_bar = st.progress(0, text="Generating Sudoku export bundle...")
                     out_dir_sdk = tempfile.mkdtemp(prefix="sudoku_studio_")
 
@@ -2204,7 +2204,7 @@ with tab_sudoku:
                         st.session_state["sdk_canva_bytes"],
                         "sudoku_canva_bulk.xlsx",
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
+                        width="stretch",
                         key="sdk_down_canva",
                     )
                     if st.session_state.get("sdk_sol_bytes"):
@@ -2213,7 +2213,7 @@ with tab_sudoku:
                             st.session_state["sdk_sol_bytes"],
                             "sudoku_solutions.xlsx",
                             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True,
+                            width="stretch",
                             key="sdk_down_sol",
                         )
                     if st.session_state.get("sdk_pdf_bytes"):
@@ -2222,7 +2222,7 @@ with tab_sudoku:
                             st.session_state["sdk_pdf_bytes"],
                             "sudoku_kdp_interior.pdf",
                             "application/pdf",
-                            use_container_width=True,
+                            width="stretch",
                             key="sdk_down_pdf",
                         )
                     st.download_button(
@@ -2230,7 +2230,7 @@ with tab_sudoku:
                         st.session_state["sdk_zip_bytes"],
                         "sudoku_complete_bundle.zip",
                         "application/zip",
-                        use_container_width=True,
+                        width="stretch",
                         key="sdk_down_zip",
                     )
 
