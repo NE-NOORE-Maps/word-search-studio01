@@ -885,7 +885,7 @@ with tab_ws:
         st.session_state["letter_color"] = init_p["letter_color"]
         st.session_state["solution_style"] = init_p["solution_style"]
 
-    ws_controls, ws_preview = st.columns([1.02, 1.44], gap="medium")
+    ws_controls, ws_preview = st.columns([1.08, 1.42], gap="medium")
 
     with ws_controls:
         st.markdown('<div class="studio-controls-marker"></div>', unsafe_allow_html=True)
@@ -944,14 +944,17 @@ with tab_ws:
 
         with ws_tab_words:
             st.markdown('<div class="panel-step">Step 2 · Word Input & Theme</div>', unsafe_allow_html=True)
-            mode = st.radio("Source", ["Import CSV", "Paste a word list"], horizontal=True, key="ws_source_mode")
-            default_theme = st.text_input(
-                "Theme / Title",
-                value=st.session_state.get("default_theme", lang_cfg["default_theme"]),
-                key="ws_theme_input",
-                help="Title of the puzzle page",
-            )
-            st.session_state["default_theme"] = default_theme
+            c_w1, c_w2 = st.columns([1.05, 0.95], gap="small")
+            with c_w1:
+                mode = st.radio("Source", ["Import CSV", "Paste a word list"], horizontal=True, key="ws_source_mode")
+            with c_w2:
+                default_theme = st.text_input(
+                    "Theme / Title",
+                    value=st.session_state.get("default_theme", lang_cfg["default_theme"]),
+                    key="ws_theme_input",
+                    help="Title of the puzzle page",
+                )
+                st.session_state["default_theme"] = default_theme
 
             uploaded = st.file_uploader(
                 f"CSV file ({selected_language})", type=["csv"], disabled=mode != "Import CSV", key="ws_csv_upload"
@@ -1052,49 +1055,52 @@ with tab_ws:
                 '<div class="panel-step">Grid Sizing & Dimensions</div><div class="section-title">📐 Dimensions & Word Capacity</div>',
                 unsafe_allow_html=True,
             )
-            grid_size_choice = st.selectbox(
-                "Grid Dimensions",
-                [
-                    "10 × 10 (Kids / Compact)",
-                    "12 × 10 (Activity Book)",
-                    "12 × 12 (Junior)",
-                    "13 × 13 (Medium)",
-                    "14 × 14 (Standard KDP)",
-                    "15 × 15 (Classic Newspaper)",
-                    "16 × 16 (Challenging)",
-                    "Auto (from Difficulty)",
-                    "Custom (Rows × Cols)",
-                ],
-                index=1,
-                key="ws_grid_size_choice",
-                help="Choose standard popular book sizes or configure custom dimensions.",
-            )
+            c_g1, c_g2 = st.columns([1.05, 0.95], gap="small")
+            with c_g1:
+                grid_size_choice = st.selectbox(
+                    "Grid Dimensions",
+                    [
+                        "10 × 10 (Kids / Compact)",
+                        "12 × 10 (Activity Book)",
+                        "12 × 12 (Junior)",
+                        "13 × 13 (Medium)",
+                        "14 × 14 (Standard KDP)",
+                        "15 × 15 (Classic Newspaper)",
+                        "16 × 16 (Challenging)",
+                        "Auto (from Difficulty)",
+                        "Custom (Rows × Cols)",
+                    ],
+                    index=1,
+                    key="ws_grid_size_choice",
+                    help="Choose standard popular book sizes or configure custom dimensions.",
+                )
 
-            if grid_size_choice == "Auto (from Difficulty)":
-                grid_rows, grid_cols = None, None
-                eff_rows = 10 if difficulty == "easy" else (13 if difficulty == "medium" else 16)
-                eff_cols = eff_rows
-            elif grid_size_choice == "Custom (Rows × Cols)":
-                c_r, c_c = st.columns(2, gap="small")
-                with c_r:
-                    grid_rows = st.slider("Rows (Height)", min_value=6, max_value=25, value=12, step=1, key="ws_cust_rows")
-                with c_c:
-                    grid_cols = st.slider("Columns (Width)", min_value=6, max_value=25, value=10, step=1, key="ws_cust_cols")
-                eff_rows, eff_cols = grid_rows, grid_cols
-            else:
-                parts = grid_size_choice.split(" ")
-                grid_rows, grid_cols = int(parts[0]), int(parts[2])
-                eff_rows, eff_cols = grid_rows, grid_cols
+                if grid_size_choice == "Auto (from Difficulty)":
+                    grid_rows, grid_cols = None, None
+                    eff_rows = 10 if difficulty == "easy" else (13 if difficulty == "medium" else 16)
+                    eff_cols = eff_rows
+                elif grid_size_choice == "Custom (Rows × Cols)":
+                    c_r, c_c = st.columns(2, gap="small")
+                    with c_r:
+                        grid_rows = st.slider("Rows (Height)", min_value=6, max_value=25, value=12, step=1, key="ws_cust_rows")
+                    with c_c:
+                        grid_cols = st.slider("Columns (Width)", min_value=6, max_value=25, value=10, step=1, key="ws_cust_cols")
+                    eff_rows, eff_cols = grid_rows, grid_cols
+                else:
+                    parts = grid_size_choice.split(" ")
+                    grid_rows, grid_cols = int(parts[0]), int(parts[2])
+                    eff_rows, eff_cols = grid_rows, grid_cols
 
             grid_capacity = max_words_for_grid(eff_rows, eff_cols)
-            words_per_page = st.slider(
-                "Words per page",
-                min_value=4,
-                max_value=max(25, grid_capacity + 6),
-                value=min(12, grid_capacity),
-                key="ws_words_per_page_slider",
-                help=f"Optimal capacity for {eff_rows}×{eff_cols} is ~{grid_capacity} words.",
-            )
+            with c_g2:
+                words_per_page = st.slider(
+                    "Words per page",
+                    min_value=4,
+                    max_value=max(25, grid_capacity + 6),
+                    value=min(12, grid_capacity),
+                    key="ws_words_per_page_slider",
+                    help=f"Optimal capacity for {eff_rows}×{eff_cols} is ~{grid_capacity} words.",
+                )
 
             st.markdown(
                 f"""
@@ -1154,25 +1160,6 @@ with tab_ws:
                 current_cs_key = st.session_state.get("cell_style", "grid")
                 cs_label = style_map.get(current_cs_key, "Classic Grid Lines")
 
-                selected_style_label = st.selectbox(
-                    "Cell Line Style",
-                    list(style_map.values()),
-                    index=list(style_map.values()).index(cs_label),
-                    key="ws_cell_style_sel",
-                    help="Choose border style or remove grid lines completely.",
-                )
-                st.session_state["cell_style"] = inv_style_map[selected_style_label]
-
-                line_w = st.slider(
-                    "Line Thickness (mm)",
-                    min_value=0.0,
-                    max_value=2.5,
-                    value=float(st.session_state.get("grid_line_width", 0.6)),
-                    step=0.1,
-                    key="ws_line_w_slider",
-                )
-                st.session_state["grid_line_width"] = line_w
-
                 col_colors = [
                     "Neutral Gray (#9da49f)",
                     "Deep Black (#111815)",
@@ -1191,39 +1178,47 @@ with tab_ws:
                 elif cur_lc not in ("#9da49f", "#111815", "#516d61", "#1a2c42"):
                     default_lc_idx = 4
 
-                picked_line_color_opt = st.selectbox(
-                    "Line Color", col_colors, index=default_lc_idx, key="ws_line_color_pick"
-                )
-                if picked_line_color_opt == "Neutral Gray (#9da49f)":
-                    st.session_state["grid_line_color"] = "#9da49f"
-                elif picked_line_color_opt == "Deep Black (#111815)":
-                    st.session_state["grid_line_color"] = "#111815"
-                elif picked_line_color_opt == "Forest Green (#516d61)":
-                    st.session_state["grid_line_color"] = "#516d61"
-                elif picked_line_color_opt == "Navy Blue (#1a2c42)":
-                    st.session_state["grid_line_color"] = "#1a2c42"
-                else:
-                    st.session_state["grid_line_color"] = st.text_input(
-                        "Custom Line Hex", cur_lc, key="ws_line_hex_in"
+                c_gl1, c_gl2 = st.columns(2, gap="small")
+                with c_gl1:
+                    selected_style_label = st.selectbox(
+                        "Cell Line Style",
+                        list(style_map.values()),
+                        index=list(style_map.values()).index(cs_label),
+                        key="ws_cell_style_sel",
+                        help="Choose border style or remove grid lines completely.",
                     )
+                    st.session_state["cell_style"] = inv_style_map[selected_style_label]
+                with c_gl2:
+                    picked_line_color_opt = st.selectbox(
+                        "Line Color", col_colors, index=default_lc_idx, key="ws_line_color_pick"
+                    )
+                    if picked_line_color_opt == "Neutral Gray (#9da49f)":
+                        st.session_state["grid_line_color"] = "#9da49f"
+                    elif picked_line_color_opt == "Deep Black (#111815)":
+                        st.session_state["grid_line_color"] = "#111815"
+                    elif picked_line_color_opt == "Forest Green (#516d61)":
+                        st.session_state["grid_line_color"] = "#516d61"
+                    elif picked_line_color_opt == "Navy Blue (#1a2c42)":
+                        st.session_state["grid_line_color"] = "#1a2c42"
+                    else:
+                        st.session_state["grid_line_color"] = st.text_input(
+                            "Custom Line Hex", cur_lc, key="ws_line_hex_in"
+                        )
+
+                line_w = st.slider(
+                    "Line Thickness (mm)",
+                    min_value=0.0,
+                    max_value=2.5,
+                    value=float(st.session_state.get("grid_line_width", 0.6)),
+                    step=0.1,
+                    key="ws_line_w_slider",
+                )
+                st.session_state["grid_line_width"] = line_w
 
             with st.expander("Letter Typography & Sizing", expanded=True):
-                f_scale = st.slider(
-                    "Letter Font Size (% of cell)",
-                    min_value=50,
-                    max_value=88,
-                    value=int(st.session_state.get("font_scale", 62)),
-                    step=2,
-                    key="ws_font_scale_slider",
-                )
-                st.session_state["font_scale"] = f_scale
-
                 font_list = ["DejaVu Sans", "DejaVu Sans Bold", "DejaVu Serif", "DejaVu Serif Bold"]
                 cur_font = st.session_state.get("letter_font", "DejaVu Sans")
                 f_idx = font_list.index(cur_font) if cur_font in font_list else 0
-                st.session_state["letter_font"] = st.selectbox(
-                    "Letter Font", font_list, index=f_idx, key="ws_letter_font_sel"
-                )
 
                 let_colors = [
                     "Dark Charcoal (#202a26)",
@@ -1243,37 +1238,51 @@ with tab_ws:
                 elif cur_let_c not in ("#202a26", "#000000", "#172721", "#1a2c42"):
                     default_let_idx = 4
 
-                picked_let_color_opt = st.selectbox(
-                    "Letter Color", let_colors, index=default_let_idx, key="ws_let_color_pick"
-                )
-                if picked_let_color_opt == "Dark Charcoal (#202a26)":
-                    st.session_state["letter_color"] = "#202a26"
-                elif picked_let_color_opt == "Jet Black (#000000)":
-                    st.session_state["letter_color"] = "#000000"
-                elif picked_let_color_opt == "Forest Ink (#172721)":
-                    st.session_state["letter_color"] = "#172721"
-                elif picked_let_color_opt == "Navy Blue (#1a2c42)":
-                    st.session_state["letter_color"] = "#1a2c42"
-                else:
-                    st.session_state["letter_color"] = st.text_input(
-                        "Custom Letter Hex", cur_let_c, key="ws_let_hex_in"
+                c_lt1, c_lt2 = st.columns(2, gap="small")
+                with c_lt1:
+                    st.session_state["letter_font"] = st.selectbox(
+                        "Letter Font", font_list, index=f_idx, key="ws_letter_font_sel"
                     )
+                with c_lt2:
+                    picked_let_color_opt = st.selectbox(
+                        "Letter Color", let_colors, index=default_let_idx, key="ws_let_color_pick"
+                    )
+                    if picked_let_color_opt == "Dark Charcoal (#202a26)":
+                        st.session_state["letter_color"] = "#202a26"
+                    elif picked_let_color_opt == "Jet Black (#000000)":
+                        st.session_state["letter_color"] = "#000000"
+                    elif picked_let_color_opt == "Forest Ink (#172721)":
+                        st.session_state["letter_color"] = "#172721"
+                    elif picked_let_color_opt == "Navy Blue (#1a2c42)":
+                        st.session_state["letter_color"] = "#1a2c42"
+                    else:
+                        st.session_state["letter_color"] = st.text_input(
+                            "Custom Letter Hex", cur_let_c, key="ws_let_hex_in"
+                        )
+
+                f_scale = st.slider(
+                    "Letter Font Size (% of cell)",
+                    min_value=50,
+                    max_value=88,
+                    value=int(st.session_state.get("font_scale", 62)),
+                    step=2,
+                    key="ws_font_scale_slider",
+                )
+                st.session_state["font_scale"] = f_scale
 
             with st.expander("Page Layout & Solutions", expanded=False):
-                show_bank = st.toggle("Display word bank", True, key="ws_show_bank_tog")
-                bank_columns = st.selectbox("Word bank columns", [1, 2, 3, 4, 5], index=1, key="ws_bank_cols_sel")
+                c_bk1, c_bk2 = st.columns([1, 1], gap="small")
+                with c_bk1:
+                    show_bank = st.toggle("Display word bank", True, key="ws_show_bank_tog")
+                with c_bk2:
+                    bank_columns = st.selectbox(
+                        "Word bank columns", [1, 2, 3, 4, 5], index=1, key="ws_bank_cols_sel", disabled=not show_bank
+                    )
 
                 sol_map = {"capsule": "Capsule / Pill Highlighter", "box": "Box Outline", "bold": "Bold Letters"}
                 inv_sol_map = {v: k for k, v in sol_map.items()}
                 cur_sol = st.session_state.get("solution_style", "capsule")
                 sol_label = sol_map.get(cur_sol, "Capsule / Pill Highlighter")
-                chosen_sol_label = st.selectbox(
-                    "Solution Marker",
-                    list(sol_map.values()),
-                    index=list(sol_map.values()).index(sol_label),
-                    key="ws_sol_style_sel",
-                )
-                st.session_state["solution_style"] = inv_sol_map[chosen_sol_label]
 
                 include_solution_in_bulk = st.checkbox(
                     "Include solution on the same Excel with the game",
@@ -1281,9 +1290,24 @@ with tab_ws:
                     key="ws_sol_in_bulk_chk",
                     help="When checked, solution images are added as an extra column in the Canva bulk Excel. When unchecked, exported to a separate workbook.",
                 )
-                solutions_per_page = st.selectbox(
-                    "Solutions per page", [1, 2, 3, 4, 5], index=3, disabled=include_solution_in_bulk, key="ws_sols_per_page_sel"
-                )
+
+                c_sm1, c_sm2 = st.columns(2, gap="small")
+                with c_sm1:
+                    chosen_sol_label = st.selectbox(
+                        "Solution Marker",
+                        list(sol_map.values()),
+                        index=list(sol_map.values()).index(sol_label),
+                        key="ws_sol_style_sel",
+                    )
+                    st.session_state["solution_style"] = inv_sol_map[chosen_sol_label]
+                with c_sm2:
+                    solutions_per_page = st.selectbox(
+                        "Solutions per page",
+                        [1, 2, 3, 4, 5],
+                        index=3,
+                        disabled=include_solution_in_bulk,
+                        key="ws_sols_per_page_sel",
+                    )
 
     active_fill_alphabet = lang_cfg["fill_alphabet"]
     if accent_mode == "Strip All Accents (A-Z)":
@@ -1534,13 +1558,13 @@ with tab_sudoku:
         st.session_state["s_solution_color"] = init_s["solution_color"]
         st.session_state["s_solution_mode"] = init_s["solution_mode"]
 
-    sdk_controls, sdk_preview = st.columns([1.02, 1.44], gap="medium")
+    sdk_controls, sdk_preview = st.columns([1.08, 1.42], gap="medium")
 
     with sdk_controls:
         st.markdown('<div class="studio-controls-marker"></div>', unsafe_allow_html=True)
         # Step 1: Puzzle Type & Rules
         st.markdown(
-            '<div class="ctrl-card"><div class="panel-step">Step 1 · Puzzle Type & Rules</div><div class="section-title">🧩 Select Sudoku Game Type</div>',
+            '<div class="ctrl-card"><div class="panel-step">Step 1 · Puzzle Type & Rules</div><div class="section-title">🧩 Sudoku Game Type & Difficulty</div>',
             unsafe_allow_html=True,
         )
 
@@ -1552,15 +1576,6 @@ with tab_sudoku:
             "Sudoku X (Diagonal Constraints)": SudokuType.SUDOKU_X,
             "Windoku (Hyper 4-Window)": SudokuType.WINDOKU,
         }
-        picked_type_label = st.selectbox(
-            "Game Type",
-            list(type_options.keys()),
-            index=0,
-            key="sdk_type_selector",
-            help="Choose standard 9x9, kids mini grids, letter wordoku, or popular diagonal/window variants.",
-        )
-        selected_sudoku_type = type_options[picked_type_label]
-
         diff_options = {
             "Very Easy (Beginner)": SudokuDifficulty.VERY_EASY,
             "Easy (Casual)": SudokuDifficulty.EASY,
@@ -1568,14 +1583,27 @@ with tab_sudoku:
             "Hard (Challenging)": SudokuDifficulty.HARD,
             "Expert (Master / Evil)": SudokuDifficulty.EXPERT,
         }
-        picked_diff_label = st.selectbox(
-            "Difficulty Level",
-            list(diff_options.keys()),
-            index=2,
-            key="sdk_diff_selector",
-            help="Difficulty determines clue density and solving techniques required.",
-        )
-        selected_difficulty = diff_options[picked_diff_label]
+
+        c_t1, c_t2 = st.columns(2, gap="small")
+        with c_t1:
+            picked_type_label = st.selectbox(
+                "Game Type",
+                list(type_options.keys()),
+                index=0,
+                key="sdk_type_selector",
+                help="Choose standard 9x9, kids mini grids, letter wordoku, or popular diagonal/window variants.",
+            )
+            selected_sudoku_type = type_options[picked_type_label]
+
+        with c_t2:
+            picked_diff_label = st.selectbox(
+                "Difficulty Level",
+                list(diff_options.keys()),
+                index=2,
+                key="sdk_diff_selector",
+                help="Difficulty determines clue density and solving techniques required.",
+            )
+            selected_difficulty = diff_options[picked_diff_label]
 
         dim_size = 4 if selected_sudoku_type == SudokuType.MINI_4X4 else (6 if selected_sudoku_type == SudokuType.JUNIOR_6X6 else 9)
         std_clues = get_default_clues(dim_size, selected_difficulty)
@@ -1673,10 +1701,10 @@ with tab_sudoku:
                     help="Type any custom number of puzzles up to 300.",
                 )
 
-            c_n1, c_n2 = st.columns(2, gap="small")
+            c_n1, c_n2 = st.columns([0.85, 1.15], gap="small")
             with c_n1:
                 sdk_start_num = st.number_input(
-                    "Starting Puzzle Number",
+                    "Starting Puzzle #",
                     min_value=1,
                     value=1,
                     step=1,
@@ -1684,6 +1712,15 @@ with tab_sudoku:
                     help="E.g., start at 51 if creating Volume 2 of your puzzle book series.",
                 )
             with c_n2:
+                sdk_title_template = st.text_input(
+                    "Title Template",
+                    value="Sudoku #{num}",
+                    key="sdk_title_tpl_in",
+                    help="Template for puzzle titles. Tokens available: {num}, {diff}, {type}",
+                )
+
+            c_sd1, c_sd2 = st.columns([0.75, 1.25], gap="small")
+            with c_sd1:
                 sdk_seed = st.number_input(
                     "Random Seed",
                     min_value=0,
@@ -1692,26 +1729,19 @@ with tab_sudoku:
                     key="sdk_seed_in",
                     help="Deterministic seed for exact reproducible puzzle layouts.",
                 )
-
-            sdk_title_template = st.text_input(
-                "Title Template",
-                value="Sudoku #{num}",
-                key="sdk_title_tpl_in",
-                help="Template for puzzle titles. Tokens available: {num}, {diff}, {type}",
-            )
-
-            st.markdown(
-                f"""
-            <div class="card" style="margin-top:.4rem; padding:10px 14px;">
-                <div class="smallcaps">Batch Summary</div>
-                <b>{sdk_count} Puzzles</b> · Numbered #{sdk_start_num} to #{sdk_start_num + sdk_count - 1}<br>
-                <span style="color:#56675f; font-size:0.8rem;">
-                    Title: <i>{sdk_title_template.replace('{num}', str(sdk_start_num)).replace('{diff}', DIFFICULTY_LABELS[selected_difficulty])}</i> · 100% Unique Solutions Guaranteed
-                </span>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
+            with c_sd2:
+                st.markdown(
+                    f"""
+                <div class="card" style="margin-top:0; padding:8px 12px;">
+                    <div class="smallcaps">Batch Summary</div>
+                    <b>{sdk_count} Puzzles</b> · #{sdk_start_num} to #{sdk_start_num + sdk_count - 1}<br>
+                    <span style="color:#56675f; font-size:0.75rem;">
+                        Title: <i>{sdk_title_template.replace('{num}', str(sdk_start_num)).replace('{diff}', DIFFICULTY_LABELS[selected_difficulty])}</i> · 100% Unique
+                    </span>
+                </div>
+                """,
+                    unsafe_allow_html=True,
+                )
 
         with sdk_tab_style:
             st.markdown(
@@ -1760,13 +1790,55 @@ with tab_sudoku:
                 }
                 inv_s_style = {v: k for k, v in s_style_map.items()}
                 cur_cs = st.session_state.get("s_cell_style", "grid")
-                picked_cs_label = st.selectbox(
-                    "Cell Border Style",
-                    list(s_style_map.values()),
-                    index=list(s_style_map.values()).index(s_style_map.get(cur_cs, "Classic Continuous Grid")),
-                    key="sdk_cell_style_sel",
-                )
-                st.session_state["s_cell_style"] = inv_s_style[picked_cs_label]
+
+                s_grid_colors = [
+                    "Jet Black (#111815)",
+                    "Pure Black (#000000)",
+                    "Charcoal Slate (#1f2937)",
+                    "Navy Blue (#1e293b)",
+                    "Forest Green (#14382d)",
+                    "Custom Hex",
+                ]
+                cur_gc = st.session_state.get("s_grid_color", "#111815")
+                def_gc_idx = 0
+                if cur_gc == "#000000":
+                    def_gc_idx = 1
+                elif cur_gc == "#1f2937":
+                    def_gc_idx = 2
+                elif cur_gc == "#1e293b":
+                    def_gc_idx = 3
+                elif cur_gc == "#14382d":
+                    def_gc_idx = 4
+                elif cur_gc not in ("#111815", "#000000", "#1f2937", "#1e293b", "#14382d"):
+                    def_gc_idx = 5
+
+                c_b1, c_b2 = st.columns(2, gap="small")
+                with c_b1:
+                    picked_cs_label = st.selectbox(
+                        "Cell Border Style",
+                        list(s_style_map.values()),
+                        index=list(s_style_map.values()).index(s_style_map.get(cur_cs, "Classic Continuous Grid")),
+                        key="sdk_cell_style_sel",
+                    )
+                    st.session_state["s_cell_style"] = inv_s_style[picked_cs_label]
+                with c_b2:
+                    picked_gc_opt = st.selectbox(
+                        "Grid Line Color", s_grid_colors, index=def_gc_idx, key="sdk_grid_color_sel"
+                    )
+                    if picked_gc_opt == "Jet Black (#111815)":
+                        st.session_state["s_grid_color"] = "#111815"
+                    elif picked_gc_opt == "Pure Black (#000000)":
+                        st.session_state["s_grid_color"] = "#000000"
+                    elif picked_gc_opt == "Charcoal Slate (#1f2937)":
+                        st.session_state["s_grid_color"] = "#1f2937"
+                    elif picked_gc_opt == "Navy Blue (#1e293b)":
+                        st.session_state["s_grid_color"] = "#1e293b"
+                    elif picked_gc_opt == "Forest Green (#14382d)":
+                        st.session_state["s_grid_color"] = "#14382d"
+                    else:
+                        st.session_state["s_grid_color"] = st.text_input(
+                            "Custom Grid Hex", cur_gc, key="sdk_grid_hex_in"
+                        )
 
                 c_lw1, c_lw2, c_lw3 = st.columns(3, gap="small")
                 with c_lw1:
@@ -1799,62 +1871,15 @@ with tab_sudoku:
                         help="Thin divider lines between individual numbers.",
                     )
 
-                s_grid_colors = [
-                    "Jet Black (#111815)",
-                    "Pure Black (#000000)",
-                    "Charcoal Slate (#1f2937)",
-                    "Navy Blue (#1e293b)",
-                    "Forest Green (#14382d)",
-                    "Custom Hex",
-                ]
-                cur_gc = st.session_state.get("s_grid_color", "#111815")
-                def_gc_idx = 0
-                if cur_gc == "#000000":
-                    def_gc_idx = 1
-                elif cur_gc == "#1f2937":
-                    def_gc_idx = 2
-                elif cur_gc == "#1e293b":
-                    def_gc_idx = 3
-                elif cur_gc == "#14382d":
-                    def_gc_idx = 4
-                elif cur_gc not in ("#111815", "#000000", "#1f2937", "#1e293b", "#14382d"):
-                    def_gc_idx = 5
-
-                picked_gc_opt = st.selectbox(
-                    "Grid Line Color", s_grid_colors, index=def_gc_idx, key="sdk_grid_color_sel"
-                )
-                if picked_gc_opt == "Jet Black (#111815)":
-                    st.session_state["s_grid_color"] = "#111815"
-                elif picked_gc_opt == "Pure Black (#000000)":
-                    st.session_state["s_grid_color"] = "#000000"
-                elif picked_gc_opt == "Charcoal Slate (#1f2937)":
-                    st.session_state["s_grid_color"] = "#1f2937"
-                elif picked_gc_opt == "Navy Blue (#1e293b)":
-                    st.session_state["s_grid_color"] = "#1e293b"
-                elif picked_gc_opt == "Forest Green (#14382d)":
-                    st.session_state["s_grid_color"] = "#14382d"
-                else:
-                    st.session_state["s_grid_color"] = st.text_input(
-                        "Custom Grid Hex", cur_gc, key="sdk_grid_hex_in"
-                    )
-
             with st.expander("Shading & Highlights", expanded=True):
                 shading_modes = {
                     "none": "No Shading (Clean White)",
-                    "checkerboard": "Checkerboard (Alternating 3×3 Blocks)",
+                    "checkerboard": "Checkerboard (Alternating 3×3)",
                     "diagonal": "Diagonal Highlight (Sudoku X)",
-                    "windows": "Hyper Windows Highlight (Windoku)",
+                    "windows": "Hyper Windows (Windoku)",
                 }
                 cur_sm = st.session_state.get("s_shading_mode", "none")
-                picked_sm_label = st.selectbox(
-                    "Region Shading Mode",
-                    list(shading_modes.values()),
-                    index=list(shading_modes.keys()).index(cur_sm) if cur_sm in shading_modes else 0,
-                    key="sdk_shading_mode_sel",
-                    help="Highlight blocks, diagonals, or windows to help solvers navigate the board.",
-                )
                 inv_sm = {v: k for k, v in shading_modes.items()}
-                st.session_state["s_shading_mode"] = inv_sm[picked_sm_label]
 
                 shading_colors = [
                     "Soft Sage Gray (#ecefe9)",
@@ -1874,39 +1899,53 @@ with tab_sudoku:
                 elif cur_sc not in ("#ecefe9", "#f4f3ec", "#e2e8f0", "#f5f5f4"):
                     def_sc_idx = 4
 
-                picked_sc_opt = st.selectbox(
-                    "Shading Tone", shading_colors, index=def_sc_idx, key="sdk_shading_color_sel"
-                )
-                if picked_sc_opt == "Soft Sage Gray (#ecefe9)":
-                    st.session_state["s_shading_color"] = "#ecefe9"
-                elif picked_sc_opt == "Warm Cream (#f4f3ec)":
-                    st.session_state["s_shading_color"] = "#f4f3ec"
-                elif picked_sc_opt == "Cool Ice Slate (#e2e8f0)":
-                    st.session_state["s_shading_color"] = "#e2e8f0"
-                elif picked_sc_opt == "Subtle Linen (#f5f5f4)":
-                    st.session_state["s_shading_color"] = "#f5f5f4"
-                else:
-                    st.session_state["s_shading_color"] = st.text_input(
-                        "Custom Shading Hex", cur_sc, key="sdk_shading_hex_in"
+                c_sh1, c_sh2 = st.columns(2, gap="small")
+                with c_sh1:
+                    picked_sm_label = st.selectbox(
+                        "Region Shading Mode",
+                        list(shading_modes.values()),
+                        index=list(shading_modes.keys()).index(cur_sm) if cur_sm in shading_modes else 0,
+                        key="sdk_shading_mode_sel",
+                        help="Highlight blocks, diagonals, or windows to help solvers navigate the board.",
                     )
+                    st.session_state["s_shading_mode"] = inv_sm[picked_sm_label]
+                with c_sh2:
+                    picked_sc_opt = st.selectbox(
+                        "Shading Tone", shading_colors, index=def_sc_idx, key="sdk_shading_color_sel"
+                    )
+                    if picked_sc_opt == "Soft Sage Gray (#ecefe9)":
+                        st.session_state["s_shading_color"] = "#ecefe9"
+                    elif picked_sc_opt == "Warm Cream (#f4f3ec)":
+                        st.session_state["s_shading_color"] = "#f4f3ec"
+                    elif picked_sc_opt == "Cool Ice Slate (#e2e8f0)":
+                        st.session_state["s_shading_color"] = "#e2e8f0"
+                    elif picked_sc_opt == "Subtle Linen (#f5f5f4)":
+                        st.session_state["s_shading_color"] = "#f5f5f4"
+                    else:
+                        st.session_state["s_shading_color"] = st.text_input(
+                            "Custom Shading Hex", cur_sc, key="sdk_shading_hex_in"
+                        )
 
             with st.expander("Typography & Solution Display", expanded=True):
-                st.session_state["s_font_scale"] = st.slider(
-                    "Digit Size (% of cell)",
-                    min_value=45,
-                    max_value=85,
-                    value=int(st.session_state.get("s_font_scale", 64)),
-                    step=2,
-                    key="sdk_font_scale_slider",
-                    help="60-64% = Standard balanced, 76-82% = Senior giant print.",
-                )
-
                 s_fonts = ["DejaVu Sans Bold", "DejaVu Sans", "DejaVu Serif Bold", "DejaVu Serif", "DejaVu Sans Mono"]
                 cur_sf = st.session_state.get("s_clue_font", "DejaVu Sans Bold")
                 sf_idx = s_fonts.index(cur_sf) if cur_sf in s_fonts else 0
-                st.session_state["s_clue_font"] = st.selectbox(
-                    "Number Font", s_fonts, index=sf_idx, key="sdk_font_sel"
-                )
+
+                c_tp1, c_tp2 = st.columns(2, gap="small")
+                with c_tp1:
+                    st.session_state["s_font_scale"] = st.slider(
+                        "Digit Size (% of cell)",
+                        min_value=45,
+                        max_value=85,
+                        value=int(st.session_state.get("s_font_scale", 64)),
+                        step=2,
+                        key="sdk_font_scale_slider",
+                        help="60-64% = Standard balanced, 76-82% = Senior giant print.",
+                    )
+                with c_tp2:
+                    st.session_state["s_clue_font"] = st.selectbox(
+                        "Number Font", s_fonts, index=sf_idx, key="sdk_font_sel"
+                    )
 
                 c_cl1, c_cl2 = st.columns(2, gap="small")
                 with c_cl1:
@@ -1946,36 +1985,44 @@ with tab_sudoku:
                     st.session_state["s_solution_mode"] = inv_sm_mode[picked_sm_label]
 
             with st.expander("KDP Book & Solutions Layout", expanded=False):
-                sdk_trim_choice = st.selectbox(
-                    "KDP Book Trim Size",
-                    list(TRIM_SIZES.keys()),
-                    index=0,
-                    key="sdk_trim_sel",
-                    help="Standard 8.5x11 inch activity book or 6x9 pocket puzzle book.",
-                )
+                c_kd1, c_kd2 = st.columns(2, gap="small")
+                with c_kd1:
+                    sdk_trim_choice = st.selectbox(
+                        "KDP Book Trim Size",
+                        list(TRIM_SIZES.keys()),
+                        index=0,
+                        key="sdk_trim_sel",
+                        help="Standard 8.5x11 inch activity book or 6x9 pocket puzzle book.",
+                    )
+                with c_kd2:
+                    sdk_solutions_per_page = st.selectbox(
+                        "Solutions Per Page",
+                        [1, 2, 4, 6, 9],
+                        index=3,
+                        disabled=sdk_include_sol_in_same_excel,
+                        key="sdk_sol_per_page_sel",
+                        help="4, 6, or 9 per page saves book page count in KDP solutions section or separate workbook.",
+                    )
+
                 sdk_include_sol_in_same_excel = st.checkbox(
                     "Include solution on the same Excel with the game",
                     value=True,
                     key="sdk_sol_in_same_excel_chk",
                     help="When checked, both puzzle and solution image paths are included in the same Canva Bulk Excel row. When unchecked, solutions are exported to a separate workbook.",
                 )
-                sdk_solutions_per_page = st.selectbox(
-                    "Solutions Per Page",
-                    [1, 2, 4, 6, 9],
-                    index=3,
-                    disabled=sdk_include_sol_in_same_excel,
-                    key="sdk_sol_per_page_sel",
-                    help="4, 6, or 9 per page saves book page count in KDP solutions section or separate workbook.",
-                )
-                sdk_include_instructions = st.toggle(
-                    "Include game instructions on puzzle pages", value=True, key="sdk_inst_tog"
-                )
-                sdk_embed_header_in_img = st.toggle(
-                    "Embed title/badge inside raster image",
-                    value=False,
-                    key="sdk_header_in_img_tog",
-                    help="Keep off for Canva Bulk (Canva provides text boxes). Turn on for standalone PNG printing.",
-                )
+
+                c_tg1, c_tg2 = st.columns(2, gap="small")
+                with c_tg1:
+                    sdk_include_instructions = st.toggle(
+                        "Include instructions on puzzle pages", value=True, key="sdk_inst_tog"
+                    )
+                with c_tg2:
+                    sdk_embed_header_in_img = st.toggle(
+                        "Embed title inside image",
+                        value=False,
+                        key="sdk_header_in_img_tog",
+                        help="Keep off for Canva Bulk (Canva provides text boxes). Turn on for standalone PNG printing.",
+                    )
 
     # Active Sudoku Style Object
     active_sudoku_style = SimpleNamespace(
