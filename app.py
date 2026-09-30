@@ -1985,6 +1985,13 @@ with tab_sudoku:
                     st.session_state["s_solution_mode"] = inv_sm_mode[picked_sm_label]
 
             with st.expander("KDP Book & Solutions Layout", expanded=False):
+                sdk_include_sol_in_same_excel = st.checkbox(
+                    "Include solution on the same Excel with the game",
+                    value=True,
+                    key="sdk_sol_in_same_excel_chk",
+                    help="When checked, both puzzle and solution image paths are included in the same Canva Bulk Excel row. When unchecked, solutions are exported to a separate workbook.",
+                )
+
                 c_kd1, c_kd2 = st.columns(2, gap="small")
                 with c_kd1:
                     sdk_trim_choice = st.selectbox(
@@ -2003,13 +2010,6 @@ with tab_sudoku:
                         key="sdk_sol_per_page_sel",
                         help="4, 6, or 9 per page saves book page count in KDP solutions section or separate workbook.",
                     )
-
-                sdk_include_sol_in_same_excel = st.checkbox(
-                    "Include solution on the same Excel with the game",
-                    value=True,
-                    key="sdk_sol_in_same_excel_chk",
-                    help="When checked, both puzzle and solution image paths are included in the same Canva Bulk Excel row. When unchecked, solutions are exported to a separate workbook.",
-                )
 
                 c_tg1, c_tg2 = st.columns(2, gap="small")
                 with c_tg1:
