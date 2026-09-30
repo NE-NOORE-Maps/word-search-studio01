@@ -21,9 +21,14 @@ def build_sudoku_workbooks(
     style: Any = None,
     trim_choice: str = "8.5 x 11 inches (Letter)",
     include_instructions: bool = True,
+    include_solution_in_same_excel: bool = True,
     progress_bar: Optional[Any] = None,
-) -> Tuple[str, str, str, bytes]:
-    """Render all 300 DPI Sudoku images, create Canva Excel, Solutions Excel, KDP PDF, and ZIP bundle."""
+) -> Tuple[str, Optional[str], str, bytes]:
+    """Render all 300 DPI Sudoku images, create Canva Excel, Solutions Excel, KDP PDF, and ZIP bundle.
+
+    If include_solution_in_same_excel is True, the solution images are embedded directly in the same
+    Excel file alongside the puzzle image for 1-click Canva Bulk Create mapping.
+    """
     os.makedirs(out_dir, exist_ok=True)
     img_dir = os.path.join(out_dir, "images")
     os.makedirs(img_dir, exist_ok=True)
@@ -53,7 +58,10 @@ def build_sudoku_workbooks(
     text_columns = ["page", "puzzle_num", "title", "difficulty", "clues_count"]
     if puzzles and puzzles[0].wordoku_word:
         text_columns.append("wordoku_word")
-    image_columns = ["grid_image", "solution_image"]
+
+    image_columns = ["grid_image"]
+    if include_solution_in_same_excel:
+        image_columns.append("solution_image")
 
     rows = []
     for i, puzzle in enumerate(puzzles, 1):
@@ -64,8 +72,9 @@ def build_sudoku_workbooks(
             "difficulty": puzzle.difficulty_label,
             "clues_count": puzzle.clues_count,
             "grid_image": grid_paths[i - 1],
-            "solution_image": sol_paths[i - 1],
         }
+        if include_solution_in_same_excel:
+            row["solution_image"] = sol_paths[i - 1]
         if puzzle.wordoku_word:
             row["wordoku_word"] = puzzle.wordoku_word
         rows.append(row)
@@ -74,46 +83,52 @@ def build_sudoku_workbooks(
     canva_files = write_bulk_excel(canva_path, rows, text_columns, image_columns, max_rows=0)
     canva_path = canva_files[0]
 
-    # 3. Build Solutions Excel Workbook with embedded thumbnails
-    if progress_bar:
-        progress_bar.progress(70, text="Generating solutions workbook...")
+    solutions_path = None
+    if not include_solution_in_same_excel:
+        # Separate Solutions Excel Workbook with embedded thumbnails
+        if progress_bar:
+            progress_bar.progress(70, text="Generating separate solutions workbook...")
 
-    solutions_path = os.path.join(out_dir, "sudoku_solutions.xlsx")
-    wb = xlsxwriter.Workbook(solutions_path)
-    ws = wb.add_worksheet("Solutions")
+        solutions_path = os.path.join(out_dir, "sudoku_solutions.xlsx")
+        wb = xlsxwriter.Workbook(solutions_path)
+        ws = wb.add_worksheet("Solutions")
 
-    cols_count = max(1, min(9, solutions_per_page))
-    solution_headers = ["page_number", "title"] + [f"solution_{j}" for j in range(1, cols_count + 1)]
-    for c, header in enumerate(solution_headers):
-        ws.write(0, c, header)
-    ws.set_column(0, 0, 12)
-    ws.set_column(1, 1, 25)
-    ws.set_column(2, 1 + cols_count, 32)
+        cols_count = max(1, min(9, solutions_per_page))
+        solution_headers = ["page_number", "title"] + [f"solution_{j}" for j in range(1, cols_count + 1)]
+        for c, header in enumerate(solution_headers):
+            ws.write(0, c, header)
+        ws.set_column(0, 0, 12)
+        ws.set_column(1, 1, 25)
+        ws.set_column(2, 1 + cols_count, 32)
 
-    for page_start in range(0, total, cols_count):
-        row_idx = page_start // cols_count + 1
-        ws.set_row(row_idx, 160)
-        first_puzzle = puzzles[page_start]
-        ws.write(row_idx, 0, page_start + 1)
-        ws.write(row_idx, 1, first_puzzle.title)
+        for page_start in range(0, total, cols_count):
+            row_idx = page_start // cols_count + 1
+            ws.set_row(row_idx, 160)
+            first_puzzle = puzzles[page_start]
+            ws.write(row_idx, 0, page_start + 1)
+            ws.write(row_idx, 1, first_puzzle.title)
 
-        for offset in range(cols_count):
-            index = page_start + offset
-            if index >= len(sol_paths):
-                break
-            ws.insert_image(
-                row_idx,
-                2 + offset,
-                sol_paths[index],
-                {
-                    "x_scale": 0.10,
-                    "y_scale": 0.10,
-                    "x_offset": 5,
-                    "y_offset": 5,
-                    "positioning": 1,
-                },
-            )
-    wb.close()
+            for offset in range(cols_count):
+                index = page_start + offset
+                if index >= len(sol_paths):
+                    break
+                ws.insert_image(
+                    row_idx,
+                    2 + offset,
+                    sol_paths[index],
+                    {
+                        "x_scale": 0.10,
+                        "y_scale": 0.10,
+                        "x_offset": 5,
+                        "y_offset": 5,
+                        "positioning": 1,
+                    },
+                )
+        wb.close()
+    else:
+        # Add a secondary Solutions worksheet into the same canva_path workbook if user wants both sheets
+        # Or write_bulk_excel already has grid_image and solution_image on the same row!
+        pass
 
     # 4. Generate KDP PDF Interior Book
     if progress_bar:
@@ -137,7 +152,8 @@ def build_sudoku_workbooks(
     zip_path = os.path.join(out_dir, "sudoku_complete_bundle.zip")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         z.write(canva_path, os.path.basename(canva_path))
-        z.write(solutions_path, os.path.basename(solutions_path))
+        if solutions_path:
+            z.write(solutions_path, os.path.basename(solutions_path))
         z.write(pdf_path, os.path.basename(pdf_path))
         for p in grid_paths + sol_paths:
             z.write(p, f"images/{os.path.basename(p)}")

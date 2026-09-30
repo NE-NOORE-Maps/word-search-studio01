@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -273,7 +274,25 @@ sdk_sol_page = render_sudoku_solution_page_image([p_s9, p_s4], style_s_classic, 
 assert sdk_sol_page.size[0] > 0 and sdk_sol_page.size[1] > 0
 print("ok Sudoku composite solution page preview test passed")
 
+# 8. Sudoku Workbook Export with same vs separate Excel
+import tempfile
+out_sdk_same = tempfile.mkdtemp(prefix="sdk_same_test_")
+canva_same, sol_same, zip_same, pdf_same = build_sudoku_workbooks([p_s9], out_sdk_same, include_solution_in_same_excel=True)
+assert os.path.exists(canva_same)
+assert sol_same is None
+assert os.path.exists(zip_same)
+assert len(pdf_same) > 0
+print("ok Sudoku workbook export with solution in same excel passed")
+
+out_sdk_sep = tempfile.mkdtemp(prefix="sdk_sep_test_")
+canva_sep, sol_sep, zip_sep, pdf_sep = build_sudoku_workbooks([p_s9], out_sdk_sep, include_solution_in_same_excel=False)
+assert os.path.exists(canva_sep)
+assert sol_sep is not None and os.path.exists(sol_sep)
+assert os.path.exists(zip_sep)
+print("ok Sudoku workbook export with separate solutions excel passed")
+
 print("ALL SMOKE TESTS PASSED SUCCESSFULLY!")
+
 
 
 

@@ -472,42 +472,69 @@ div[data-testid="stMetricLabel"] { font-size: 0.65rem; margin-bottom: 0; font-we
 }
 
 /* =========================================================
-   SCROLLABLE CONTROLS & STICKY STATIC PREVIEW ON DESKTOP
+   SCROLLABLE CONTROLS & STATIC FIXED PREVIEW ON DESKTOP
    ========================================================= */
 @media (min-width: 992px) {
-    .scrollable-controls {
-        max-height: calc(100vh - 120px);
-        overflow-y: auto;
-        padding-right: 12px;
-        margin-bottom: 20px;
+    div[data-testid="column"]:has(.studio-controls-marker),
+    div[data-testid="stColumn"]:has(.studio-controls-marker),
+    div.stColumn:has(.studio-controls-marker) {
+        max-height: calc(100vh - 130px) !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        padding-right: 14px !important;
+        padding-bottom: 24px !important;
+        scrollbar-width: thin;
+        scrollbar-color: #c5bead #f1ede3;
     }
-    div[data-testid="column"]:nth-of-type(2) {
+
+    div[data-testid="column"]:has(.studio-preview-marker),
+    div[data-testid="stColumn"]:has(.studio-preview-marker),
+    div.stColumn:has(.studio-preview-marker) {
         position: sticky !important;
-        top: 12px !important;
+        top: 10px !important;
         align-self: flex-start !important;
-        max-height: calc(100vh - 24px);
-        overflow-y: auto;
-        padding-left: 6px;
+        max-height: calc(100vh - 30px) !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        padding-left: 8px !important;
+        scrollbar-width: thin;
+        scrollbar-color: #c5bead #f1ede3;
     }
 }
 
-/* Custom sleek scrollbars */
-.scrollable-controls::-webkit-scrollbar,
-div[data-testid="column"]:nth-of-type(2)::-webkit-scrollbar {
-    width: 6px;
+/* Custom sleek WebKit scrollbars */
+div[data-testid="column"]:has(.studio-controls-marker)::-webkit-scrollbar,
+div[data-testid="stColumn"]:has(.studio-controls-marker)::-webkit-scrollbar,
+div.stColumn:has(.studio-controls-marker)::-webkit-scrollbar,
+div[data-testid="column"]:has(.studio-preview-marker)::-webkit-scrollbar,
+div[data-testid="stColumn"]:has(.studio-preview-marker)::-webkit-scrollbar,
+div.stColumn:has(.studio-preview-marker)::-webkit-scrollbar {
+    width: 7px;
 }
-.scrollable-controls::-webkit-scrollbar-track,
-div[data-testid="column"]:nth-of-type(2)::-webkit-scrollbar-track {
+div[data-testid="column"]:has(.studio-controls-marker)::-webkit-scrollbar-track,
+div[data-testid="stColumn"]:has(.studio-controls-marker)::-webkit-scrollbar-track,
+div.stColumn:has(.studio-controls-marker)::-webkit-scrollbar-track,
+div[data-testid="column"]:has(.studio-preview-marker)::-webkit-scrollbar-track,
+div[data-testid="stColumn"]:has(.studio-preview-marker)::-webkit-scrollbar-track,
+div.stColumn:has(.studio-preview-marker)::-webkit-scrollbar-track {
     background: #f1ede3;
     border-radius: 4px;
 }
-.scrollable-controls::-webkit-scrollbar-thumb,
-div[data-testid="column"]:nth-of-type(2)::-webkit-scrollbar-thumb {
+div[data-testid="column"]:has(.studio-controls-marker)::-webkit-scrollbar-thumb,
+div[data-testid="stColumn"]:has(.studio-controls-marker)::-webkit-scrollbar-thumb,
+div.stColumn:has(.studio-controls-marker)::-webkit-scrollbar-thumb,
+div[data-testid="column"]:has(.studio-preview-marker)::-webkit-scrollbar-thumb,
+div[data-testid="stColumn"]:has(.studio-preview-marker)::-webkit-scrollbar-thumb,
+div.stColumn:has(.studio-preview-marker)::-webkit-scrollbar-thumb {
     background: #c5bead;
     border-radius: 4px;
 }
-.scrollable-controls::-webkit-scrollbar-thumb:hover,
-div[data-testid="column"]:nth-of-type(2)::-webkit-scrollbar-thumb:hover {
+div[data-testid="column"]:has(.studio-controls-marker)::-webkit-scrollbar-thumb:hover,
+div[data-testid="stColumn"]:has(.studio-controls-marker)::-webkit-scrollbar-thumb:hover,
+div.stColumn:has(.studio-controls-marker)::-webkit-scrollbar-thumb:hover,
+div[data-testid="column"]:has(.studio-preview-marker)::-webkit-scrollbar-thumb:hover,
+div[data-testid="stColumn"]:has(.studio-preview-marker)::-webkit-scrollbar-thumb:hover,
+div.stColumn:has(.studio-preview-marker)::-webkit-scrollbar-thumb:hover {
     background: #9d9685;
 }
 
@@ -861,7 +888,7 @@ with tab_ws:
     ws_controls, ws_preview = st.columns([1.02, 1.44], gap="medium")
 
     with ws_controls:
-        st.markdown('<div class="scrollable-controls">', unsafe_allow_html=True)
+        st.markdown('<div class="studio-controls-marker"></div>', unsafe_allow_html=True)
         # Step 1: Language
         st.markdown(
             '<div class="ctrl-card"><div class="panel-step">Step 1 · Language & Alphabet</div><div class="section-title">🌍 Select Puzzle Language</div>',
@@ -1249,13 +1276,14 @@ with tab_ws:
                 st.session_state["solution_style"] = inv_sol_map[chosen_sol_label]
 
                 include_solution_in_bulk = st.checkbox(
-                    "Include solution in Canva bulk", value=False, key="ws_sol_in_bulk_chk"
+                    "Include solution on the same Excel with the game",
+                    value=False,
+                    key="ws_sol_in_bulk_chk",
+                    help="When checked, solution images are added as an extra column in the Canva bulk Excel. When unchecked, exported to a separate workbook.",
                 )
                 solutions_per_page = st.selectbox(
                     "Solutions per page", [1, 2, 3, 4, 5], index=3, disabled=include_solution_in_bulk, key="ws_sols_per_page_sel"
                 )
-
-        st.markdown("</div>", unsafe_allow_html=True)
 
     active_fill_alphabet = lang_cfg["fill_alphabet"]
     if accent_mode == "Strip All Accents (A-Z)":
@@ -1275,6 +1303,7 @@ with tab_ws:
     )
 
     with ws_preview:
+        st.markdown('<div class="studio-preview-marker"></div>', unsafe_allow_html=True)
         if groups:
             target_puz_val = ws_target_puzzles if ws_custom_count_enabled else None
             puzzles = get_puzzles(
@@ -1508,7 +1537,7 @@ with tab_sudoku:
     sdk_controls, sdk_preview = st.columns([1.02, 1.44], gap="medium")
 
     with sdk_controls:
-        st.markdown('<div class="scrollable-controls">', unsafe_allow_html=True)
+        st.markdown('<div class="studio-controls-marker"></div>', unsafe_allow_html=True)
         # Step 1: Puzzle Type & Rules
         st.markdown(
             '<div class="ctrl-card"><div class="panel-step">Step 1 · Puzzle Type & Rules</div><div class="section-title">🧩 Select Sudoku Game Type</div>',
@@ -1924,12 +1953,19 @@ with tab_sudoku:
                     key="sdk_trim_sel",
                     help="Standard 8.5x11 inch activity book or 6x9 pocket puzzle book.",
                 )
+                sdk_include_sol_in_same_excel = st.checkbox(
+                    "Include solution on the same Excel with the game",
+                    value=True,
+                    key="sdk_sol_in_same_excel_chk",
+                    help="When checked, both puzzle and solution image paths are included in the same Canva Bulk Excel row. When unchecked, solutions are exported to a separate workbook.",
+                )
                 sdk_solutions_per_page = st.selectbox(
                     "Solutions Per Page",
                     [1, 2, 4, 6, 9],
                     index=3,
+                    disabled=sdk_include_sol_in_same_excel,
                     key="sdk_sol_per_page_sel",
-                    help="4, 6, or 9 per page saves book page count in KDP solutions section.",
+                    help="4, 6, or 9 per page saves book page count in KDP solutions section or separate workbook.",
                 )
                 sdk_include_instructions = st.toggle(
                     "Include game instructions on puzzle pages", value=True, key="sdk_inst_tog"
@@ -1940,8 +1976,6 @@ with tab_sudoku:
                     key="sdk_header_in_img_tog",
                     help="Keep off for Canva Bulk (Canva provides text boxes). Turn on for standalone PNG printing.",
                 )
-
-        st.markdown("</div>", unsafe_allow_html=True)
 
     # Active Sudoku Style Object
     active_sudoku_style = SimpleNamespace(
@@ -1960,6 +1994,7 @@ with tab_sudoku:
     )
 
     with sdk_preview:
+        st.markdown('<div class="studio-preview-marker"></div>', unsafe_allow_html=True)
         # Generate batch of Sudoku puzzles
         sudoku_puzzles = get_sudoku_batch(
             selected_sudoku_type.value,
@@ -2079,9 +2114,14 @@ with tab_sudoku:
 
             with sdk_exp_col:
                 st.markdown('<div class="section-title">Export Sudoku Bundle</div>', unsafe_allow_html=True)
-                st.caption(
-                    f"Book Trim: {sdk_trim_choice.split(' ')[0]} · {sdk_solutions_per_page} solutions/page · 300 DPI print-ready"
-                )
+                if sdk_include_sol_in_same_excel:
+                    st.caption(
+                        f"Book Trim: {sdk_trim_choice.split(' ')[0]} · Solutions in Canva Bulk · 300 DPI print-ready"
+                    )
+                else:
+                    st.caption(
+                        f"Book Trim: {sdk_trim_choice.split(' ')[0]} · {sdk_solutions_per_page} solutions/page · 300 DPI print-ready"
+                    )
 
                 if st.button("Generate Sudoku Bundle", type="primary", use_container_width=True, key="sdk_gen_btn"):
                     sdk_bar = st.progress(0, text="Generating Sudoku export bundle...")
@@ -2094,6 +2134,7 @@ with tab_sudoku:
                         style=active_sudoku_style,
                         trim_choice=sdk_trim_choice,
                         include_instructions=sdk_include_instructions,
+                        include_solution_in_same_excel=sdk_include_sol_in_same_excel,
                         progress_bar=sdk_bar,
                     )
 
@@ -2101,12 +2142,18 @@ with tab_sudoku:
                     st.session_state["sdk_sol_bytes"] = Path(sol_p).read_bytes() if sol_p else None
                     st.session_state["sdk_zip_bytes"] = Path(zip_p).read_bytes()
                     st.session_state["sdk_pdf_bytes"] = pdf_bytes
+                    st.session_state["sdk_sol_in_same_excel"] = sdk_include_sol_in_same_excel
 
                     st.success("Sudoku export bundle ready!")
 
                 if "sdk_canva_bytes" in st.session_state:
+                    canva_label = (
+                        "📦 Canva Bulk Excel (Game + Solution)"
+                        if st.session_state.get("sdk_sol_in_same_excel", True)
+                        else "📦 Canva Bulk Excel"
+                    )
                     st.download_button(
-                        "📦 Canva Bulk Excel",
+                        canva_label,
                         st.session_state["sdk_canva_bytes"],
                         "sudoku_canva_bulk.xlsx",
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
