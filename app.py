@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 import os
 import sys
 import tempfile
@@ -27,29 +28,72 @@ if str(ROOT) not in sys.path:
 try:
     from engine.generator import generate_puzzle
     from engine.models import Difficulty, PuzzleConfig, max_words_for_grid
-    from core.grid_raster import render_grid_image, render_solution_image
+    from core.grid_raster import (
+        render_grid_image,
+        render_solution_image,
+        render_word_search_solution_page_image,
+    )
 except ModuleNotFoundError:
     from modules.word_search.generator import generate_puzzle
     from modules.word_search.models import Difficulty, PuzzleConfig, max_words_for_grid
-    from core.grid_raster import render_grid_image, render_solution_image
+    from core.grid_raster import (
+        render_grid_image,
+        render_solution_image,
+        render_word_search_solution_page_image,
+    )
 
-st.set_page_config(page_title="Word Search Studio", page_icon="🧩", layout="wide", initial_sidebar_state="collapsed")
+from core.canva_bulk import write_bulk_excel
+from engine.sudoku import (
+    DEFAULT_WORDOKU_WORDS,
+    DIFFICULTY_LABELS,
+    DIFFICULTY_STARS,
+    TYPE_LABELS,
+    SudokuConfig,
+    SudokuDifficulty,
+    SudokuPuzzle,
+    SudokuType,
+    clean_wordoku_letters,
+    generate_sudoku_puzzle,
+    get_default_clues,
+)
+from core.sudoku_raster import (
+    SUDOKU_PRESETS,
+    render_sudoku_image,
+    render_sudoku_solution_image,
+    render_sudoku_solution_page_image,
+)
+from core.sudoku_pdf import TRIM_SIZES
+from core.sudoku_export import build_sudoku_workbooks
+
+st.set_page_config(
+    page_title="KDP Activity Studio · Word Search & Sudoku",
+    page_icon="🧩",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
 GOOGLE_ADSENSE_CLIENT = os.getenv("GOOGLE_ADSENSE_CLIENT", "")
 GOOGLE_ADSENSE_SLOT = os.getenv("GOOGLE_ADSENSE_SLOT", "")
 
 
 def render_square_ad():
-    """Render a 300x250 AdSense unit or a clear placeholder before setup."""
+    """Render a 300x250 AdSense unit or a clean placeholder before setup."""
     if GOOGLE_ADSENSE_CLIENT and GOOGLE_ADSENSE_SLOT:
-        components.html(f"""
+        components.html(
+            f"""
         <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={GOOGLE_ADSENSE_CLIENT}" crossorigin="anonymous"></script>
         <ins class="adsbygoogle" style="display:inline-block;width:300px;height:250px"
              data-ad-client="{GOOGLE_ADSENSE_CLIENT}" data-ad-slot="{GOOGLE_ADSENSE_SLOT}"></ins>
         <script>(adsbygoogle = window.adsbygoogle || []).push({{}});</script>
-        """, height=265, scrolling=False)
+        """,
+            height=265,
+            scrolling=False,
+        )
     else:
-        st.markdown('''<div class="ad-placeholder"><div class="ad-label">ADVERTISEMENT</div><div class="ad-square">300 × 250<br><span>Add your Google AdSense details after hosting</span></div></div>''', unsafe_allow_html=True)
+        st.markdown(
+            """<div class="ad-placeholder"><div class="ad-label">ADVERTISEMENT</div><div class="ad-square">300 × 250<br><span>Add your Google AdSense details after hosting</span></div></div>""",
+            unsafe_allow_html=True,
+        )
 
 
 LANGUAGE_CONFIGS = {
@@ -283,64 +327,264 @@ THEME_PRESETS = {
     },
 }
 
-st.markdown("""
+# ==============================================================================
+# UNIFIED MODERN STYLING WITH STICKY PREVIEW & SCROLLABLE CONTROLS
+# ==============================================================================
+st.markdown(
+    """
 <style>
-:root { --ink:#14251f; --muted:#64746d; --cream:#f7f4ee; --primary:#17352b; }
-.stApp { background:var(--cream); color:var(--ink); }
+:root {
+    --ink: #14251f;
+    --muted: #5e6f67;
+    --cream: #f8f6f0;
+    --primary: #17352b;
+    --primary-light: #285b4a;
+    --card-bg: #ffffff;
+    --border-light: #e4dfd6;
+}
+.stApp { background: var(--cream); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 [data-testid="stHeader"] { visibility: hidden !important; }
-.block-container { max-width:1560px; padding:0.65rem 1.25rem 1.5rem; }
-.hero { background:linear-gradient(135deg,#17352b,#285b4a); color:white; border-radius:14px; padding:12px 20px; margin-bottom:10px; }
-.hero h1 { margin:0; font-size:1.9rem; letter-spacing:-.04em; }
-.hero p { margin:.25rem 0 0; color:#d9ebe1; font-size:.9rem; }
+.block-container { max-width: 1560px; padding: 0.65rem 1.4rem 1.8rem; }
 
-/* Control Panel container & cards */
-.ctrl-card { background:white; border:1px solid #e3ded5; border-radius:12px; padding:12px 14px; margin-bottom:10px; box-shadow:0 3px 10px rgba(20,37,31,.03); }
-.lang-badge { background:#e7efe9; border:1px solid #c7dcce; color:#184534; border-radius:8px; padding:6px 10px; font-size:.78rem; font-weight:600; line-height:1.35; margin:.35rem 0 .5rem; }
-.panel-step { color:#285b4a; font-size:.72rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; margin-bottom:3px; }
-.smallcaps { color:var(--muted); font-size:.66rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
-.section-title { font-size:.95rem; font-weight:800; margin:0 0 .3rem; color:#14251f; }
+/* Top Branding Hero Banner */
+.hero {
+    background: linear-gradient(135deg, #17352b 0%, #224c3e 60%, #2f6955 100%);
+    color: white;
+    border-radius: 14px;
+    padding: 14px 22px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 15px rgba(23, 53, 43, 0.12);
+}
+.hero-tag {
+    color: #a3d9be;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+.hero h1 { margin: 0; font-size: 1.95rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; }
+.hero p { margin: 0.25rem 0 0; color: #e1efe7; font-size: 0.88rem; font-weight: 400; }
 
-div[data-testid="stMetricValue"] { color:var(--ink); font-size:1.02rem; line-height:1.05; font-weight:800; }
-div[data-testid="stMetricLabel"] { font-size:.64rem; margin-bottom:0; font-weight:700; color:var(--muted); text-transform:uppercase; }
-div[data-testid="stMetric"] { background:white; border:1px solid #e7e2d9; border-radius:10px; padding:.32rem .6rem; }
-.stButton > button, .stDownloadButton > button { border-radius:8px; font-weight:700; }
-.ad-placeholder { width:300px; height:250px; border:1px dashed #c8cec8; background:#f2f3f0; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#7b857f; margin:.5rem auto 0; }
-.ad-label { font-size:.58rem; letter-spacing:.14em; font-weight:800; margin-bottom:.45rem; }
-.ad-square { text-align:center; font-size:.9rem; font-weight:700; line-height:1.5; }
-.ad-square span { font-size:.68rem; font-weight:500; }
-.word-bank-title { color:#315e4d; font-size:.72rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; margin:.35rem 0 .2rem; }
-.word-bank-item { color:#315e4d; font-size:.78rem; line-height:1.3; padding:.08rem 0; }
-[data-testid="stImage"] img { max-height:64vh; width:auto !important; max-width:100%; object-fit:contain; border-radius:8px; }
-.theme-badge { background:#e8f0eb; border:1px solid #c9ded3; color:#1f4d3c; border-radius:8px; padding:6px 10px; font-size:.8rem; margin-bottom:.45rem; }
-.stTabs [data-baseweb="tab-list"] { gap: 6px; margin-bottom: 8px; }
-.stTabs [data-baseweb="tab"] { border-radius: 8px 8px 0 0; font-weight: 700; font-size: 0.88rem; padding: 6px 14px; }
+/* Navigation Tab Switcher */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+    margin-bottom: 12px;
+    border-bottom: 2px solid #e1dcce;
+    padding-bottom: 2px;
+}
+.stTabs [data-baseweb="tab"] {
+    background: #ebe7dd !important;
+    border: 1px solid #d5cebf !important;
+    border-radius: 9px 9px 0 0 !important;
+    font-weight: 700 !important;
+    font-size: 0.92rem !important;
+    padding: 7px 18px !important;
+    color: #3b4e45 !important;
+    transition: all 0.15s ease-in-out;
+}
+.stTabs [aria-selected="true"] {
+    background: #ffffff !important;
+    color: #17352b !important;
+    border-bottom: 2px solid #ffffff !important;
+    box-shadow: 0 -2px 8px rgba(20, 37, 31, 0.05) !important;
+}
+
+/* Control Cards & Summary Boxes */
+.ctrl-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    padding: 13px 15px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 7px rgba(20, 37, 31, 0.03);
+}
+.card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin: 8px 0;
+    box-shadow: 0 1px 4px rgba(20, 37, 31, 0.02);
+}
+.panel-step {
+    color: var(--primary-light);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+}
+.smallcaps {
+    color: var(--muted);
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+.section-title {
+    font-size: 0.98rem;
+    font-weight: 800;
+    margin: 0 0 0.35rem;
+    color: var(--ink);
+}
+
+/* Badges & Tags */
+.lang-badge, .theme-badge {
+    background: #e8f1eb;
+    border: 1px solid #c9ded2;
+    color: #194635;
+    border-radius: 8px;
+    padding: 6px 11px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.35;
+    margin: 0.35rem 0 0.45rem;
+}
+.status-pill {
+    display: inline-block;
+    background: #e0f2fe;
+    border: 1px solid #bae6fd;
+    color: #0369a1;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-top: 4px;
+}
+
+/* Metrics Strip */
+div[data-testid="stMetric"] {
+    background: white;
+    border: 1px solid #e7e2d7;
+    border-radius: 10px;
+    padding: 0.35rem 0.65rem;
+    box-shadow: 0 1px 4px rgba(20, 37, 31, 0.02);
+}
+div[data-testid="stMetricValue"] { color: var(--ink); font-size: 1.05rem; line-height: 1.05; font-weight: 800; }
+div[data-testid="stMetricLabel"] { font-size: 0.65rem; margin-bottom: 0; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+
+/* Buttons & Downloads */
+.stButton > button, .stDownloadButton > button {
+    border-radius: 8px;
+    font-weight: 700;
+    transition: all 0.15s ease-in-out;
+}
+
+/* =========================================================
+   SCROLLABLE CONTROLS & STICKY STATIC PREVIEW ON DESKTOP
+   ========================================================= */
+@media (min-width: 992px) {
+    .scrollable-controls {
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+        padding-right: 12px;
+        margin-bottom: 20px;
+    }
+    div[data-testid="column"]:nth-of-type(2) {
+        position: sticky !important;
+        top: 12px !important;
+        align-self: flex-start !important;
+        max-height: calc(100vh - 24px);
+        overflow-y: auto;
+        padding-left: 6px;
+    }
+}
+
+/* Custom sleek scrollbars */
+.scrollable-controls::-webkit-scrollbar,
+div[data-testid="column"]:nth-of-type(2)::-webkit-scrollbar {
+    width: 6px;
+}
+.scrollable-controls::-webkit-scrollbar-track,
+div[data-testid="column"]:nth-of-type(2)::-webkit-scrollbar-track {
+    background: #f1ede3;
+    border-radius: 4px;
+}
+.scrollable-controls::-webkit-scrollbar-thumb,
+div[data-testid="column"]:nth-of-type(2)::-webkit-scrollbar-thumb {
+    background: #c5bead;
+    border-radius: 4px;
+}
+.scrollable-controls::-webkit-scrollbar-thumb:hover,
+div[data-testid="column"]:nth-of-type(2)::-webkit-scrollbar-thumb:hover {
+    background: #9d9685;
+}
+
+/* Preview Image container */
+[data-testid="stImage"] img {
+    max-height: 60vh;
+    width: auto !important;
+    max-width: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+    display: block;
+    margin: 0 auto;
+}
+
+/* AdSense placeholder */
+.ad-placeholder {
+    width: 300px;
+    height: 250px;
+    border: 1px dashed #c6ccc6;
+    background: #f1f3f0;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #79837d;
+    margin: 0.6rem auto 0;
+}
+.ad-label { font-size: 0.58rem; letter-spacing: 0.14em; font-weight: 800; margin-bottom: 0.45rem; }
+.ad-square { text-align: center; font-size: 0.9rem; font-weight: 700; line-height: 1.5; }
+.ad-square span { font-size: 0.68rem; font-weight: 500; }
+
+.word-bank-title { color: #285b4a; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; margin: 0.4rem 0 0.2rem; }
+.word-bank-item { color: #285b4a; font-size: 0.8rem; line-height: 1.35; padding: 0.08rem 0; font-weight: 600; }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-st.markdown('<div class="hero"><div class="smallcaps">Multilingual puzzle production studio</div><h1>Word Search Studio</h1><p>Generate books in English, German, French, Spanish, and Italian with tailored alphabets, dynamic dimensions, and custom styles.</p></div>', unsafe_allow_html=True)
+# Render Top Studio Hero
+st.markdown(
+    """
+<div class="hero">
+    <div class="hero-tag">KDP Activity Studio · Professional Book Creator</div>
+    <h1>Activity Book Publishing Studio</h1>
+    <p>Generate publication-ready Word Search and Sudoku puzzle books for Amazon KDP, Etsy, and Canva with custom styles, grids, and instant exports.</p>
+</div>
+""",
+    unsafe_allow_html=True,
+)
+
+# ==============================================================================
+# TOP-LEVEL NAVIGATION TABS (Word Search vs Sudoku)
+# ==============================================================================
+tab_ws, tab_sudoku = st.tabs(["🔤 Word Search Studio", "🔢 Sudoku Studio"])
 
 
+# ==============================================================================
+# TAB 1: WORD SEARCH STUDIO
+# ==============================================================================
 def clean_word_for_language(raw_word: str, language: str, accent_mode: str = "Standard Book Mode") -> str:
     """Normalize and clean a word according to the language and accent preferences."""
     w = (raw_word or "").strip().upper()
     if not w:
         return ""
-    
-    # Always convert German Eszett to SS for word search
+
     w = w.replace("ß", "SS").replace("ẞ", "SS")
 
     if accent_mode == "Preserve Exact Accents":
-        # Keep any valid unicode letter (Ä, Ö, Ü, Ñ, É, È, Ê, Ç, À, Ô, etc.)
         return "".join(ch for ch in w if ch.isalpha())
 
     if accent_mode == "Strip All Accents (A-Z)":
-        # Decompose all diacritics to basic A-Z
         nfkd = unicodedata.normalize("NFKD", w)
         return "".join(ch for ch in nfkd if "A" <= ch <= "Z")
 
-    # "Standard Book Mode": Keep language-specific distinct letters, flatten remaining vowel accents
+    # Standard Book Mode
     if "Spanish" in language:
-        # Preserve Ñ / ñ, flatten other accents (Á->A, É->E, etc.)
         out = []
         for ch in w:
             if ch == "Ñ":
@@ -352,7 +596,6 @@ def clean_word_for_language(raw_word: str, language: str, accent_mode: str = "St
                     out.append(letters[0])
         return "".join(out)
     elif "German" in language:
-        # Preserve Ä, Ö, Ü, flatten any other stray accents
         out = []
         for ch in w:
             if ch in ("Ä", "Ö", "Ü"):
@@ -364,7 +607,6 @@ def clean_word_for_language(raw_word: str, language: str, accent_mode: str = "St
                     out.append(letters[0])
         return "".join(out)
     else:
-        # English, French, Italian: in standard word search grids, accents are flattened to A-Z
         nfkd = unicodedata.normalize("NFKD", w)
         return "".join(ch for ch in nfkd if "A" <= ch <= "Z")
 
@@ -407,7 +649,6 @@ def parse_input(uploaded, mode, raw_text, default_theme, language="English", acc
 
 
 def generate_reliably(words, cfg, theme):
-    """Try several deterministic seeds and keep the puzzle with fewest skips."""
     best = None
     for attempt in range(5):
         candidate_cfg = cfg.model_copy(deep=True)
@@ -421,7 +662,6 @@ def generate_reliably(words, cfg, theme):
 
 
 def render_png(puzzle, bank_columns=2, show_bank=True, solution=False, compact=False, style=None):
-    """Render the grid image using the configurable rasterizer."""
     if style is None:
         style = SimpleNamespace(
             cell_style="boxes",
@@ -443,19 +683,27 @@ def render_png(puzzle, bank_columns=2, show_bank=True, solution=False, compact=F
 
 
 def render_word_bank(words, columns=2, title="Word bank"):
-    """Show the word bank as separate UI text, never inside the grid image."""
     if not words:
         return
     st.markdown(f'<div class="word-bank-title">{title}</div>', unsafe_allow_html=True)
     bank_cols = st.columns(max(1, min(5, columns)), gap="small")
     for index, word in enumerate(sorted(words)):
-        bank_cols[index % len(bank_cols)].markdown(f'<div class="word-bank-item">{word}</div>', unsafe_allow_html=True)
+        bank_cols[index % len(bank_cols)].markdown(
+            f'<div class="word-bank-item">{word}</div>', unsafe_allow_html=True
+        )
 
 
-def build_workbooks(puzzles, out_dir, show_bank, bank_columns, solutions_per_page,
-                     include_solution_in_bulk=False, progress_bar=None, style=None):
+def build_workbooks(
+    puzzles,
+    out_dir,
+    show_bank,
+    bank_columns,
+    solutions_per_page,
+    include_solution_in_bulk=False,
+    progress_bar=None,
+    style=None,
+):
     import xlsxwriter
-    from core.canva_bulk import write_bulk_excel
 
     os.makedirs(out_dir, exist_ok=True)
     img_dir = os.path.join(out_dir, "images")
@@ -469,7 +717,7 @@ def build_workbooks(puzzles, out_dir, show_bank, bank_columns, solutions_per_pag
         render_png(puzzle, bank_columns, False, True, style=style).save(sp)
         grid_paths.append(gp)
         sol_paths.append(sp)
-        
+
         if progress_bar:
             progress_bar.progress(int((i / total) * 75), text=f"Rendering images: page {i} of {total}...")
 
@@ -515,10 +763,18 @@ def build_workbooks(puzzles, out_dir, show_bank, bank_columns, solutions_per_pag
                 index = page_start + offset
                 if index >= len(sol_paths):
                     break
-                ws.insert_image(row_idx, 2 + offset, sol_paths[index], {
-                    "x_scale": .09, "y_scale": .09,
-                    "x_offset": 5, "y_offset": 5, "positioning": 1,
-                })
+                ws.insert_image(
+                    row_idx,
+                    2 + offset,
+                    sol_paths[index],
+                    {
+                        "x_scale": 0.09,
+                        "y_scale": 0.09,
+                        "x_offset": 5,
+                        "y_offset": 5,
+                        "positioning": 1,
+                    },
+                )
         wb.close()
 
     if progress_bar:
@@ -533,337 +789,17 @@ def build_workbooks(puzzles, out_dir, show_bank, bank_columns, solutions_per_pag
     return canva_path, solutions_path, zip_path
 
 
-# Initialize session state for language, themes, and styling
-if "selected_language" not in st.session_state:
-    st.session_state["selected_language"] = "English"
-if "last_selected_language" not in st.session_state:
-    st.session_state["last_selected_language"] = "English"
-    st.session_state["default_theme"] = LANGUAGE_CONFIGS["English"]["default_theme"]
-    st.session_state["raw_words"] = LANGUAGE_CONFIGS["English"]["sample_words"]
-
-if "audience_theme" not in st.session_state:
-    st.session_state["audience_theme"] = "👔 Adult Classic"
-if "last_audience_theme" not in st.session_state:
-    st.session_state["last_audience_theme"] = "👔 Adult Classic"
-    init_p = THEME_PRESETS["👔 Adult Classic"]
-    st.session_state["cell_style"] = init_p["cell_style"]
-    st.session_state["grid_line_width"] = init_p["grid_line_width"]
-    st.session_state["grid_line_color"] = init_p["grid_line_color"]
-    st.session_state["font_scale"] = init_p["font_scale"]
-    st.session_state["letter_font"] = init_p["letter_font"]
-    st.session_state["letter_color"] = init_p["letter_color"]
-    st.session_state["solution_style"] = init_p["solution_style"]
-
-# Main layout: Left controls panel & right preview area
-controls, preview_area = st.columns([1.04, 1.42], gap="medium")
-
-with controls:
-    # -------------------------------------------------------------
-    # 1. LANGUAGE SELECTION (First option before words input)
-    # -------------------------------------------------------------
-    st.markdown('<div class="ctrl-card"><div class="panel-step">Step 1 · Language & Alphabet</div><div class="section-title">🌍 Select Puzzle Language</div>', unsafe_allow_html=True)
-    
-    lang_names = list(LANGUAGE_CONFIGS.keys())
-    current_lang_idx = lang_names.index(st.session_state["selected_language"]) if st.session_state["selected_language"] in lang_names else 0
-    
-    selected_language = st.selectbox(
-        "Language",
-        lang_names,
-        index=current_lang_idx,
-        label_visibility="collapsed",
-        key="lang_selector",
-        help="Select language. Prompts, sample words, themes, and fill alphabets adapt automatically.",
-    )
-
-    # When language changes, update defaults
-    if selected_language != st.session_state.get("last_selected_language"):
-        st.session_state["last_selected_language"] = selected_language
-        st.session_state["selected_language"] = selected_language
-        new_lang_cfg = LANGUAGE_CONFIGS[selected_language]
-        st.session_state["default_theme"] = new_lang_cfg["default_theme"]
-        st.session_state["raw_words"] = new_lang_cfg["sample_words"]
-
-    lang_cfg = LANGUAGE_CONFIGS[selected_language]
-    st.markdown(f'<div class="lang-badge">{lang_cfg["flag"]} <b>{selected_language}</b>: {lang_cfg["badge_info"]}</div>', unsafe_allow_html=True)
-
-    c_acc1, c_acc2 = st.columns([1.3, 0.7], gap="small")
-    with c_acc1:
-        accent_mode = st.selectbox(
-            "Accents & Diacritics",
-            ["Standard Book Mode", "Preserve Exact Accents", "Strip All Accents (A-Z)"],
-            index=0,
-            help="Standard Book Mode keeps official language letters (Ñ for Spanish, Ä/Ö/Ü for German) and flattens vowel accents. Preserve Exact keeps all accents typed.",
-        )
-    with c_acc2:
-        if st.button("🔄 Reset Sample", help=f"Reset theme and words to {selected_language} defaults"):
-            st.session_state["default_theme"] = lang_cfg["default_theme"]
-            st.session_state["raw_words"] = lang_cfg["sample_words"]
-            st.rerun()
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # -------------------------------------------------------------
-    # 2. TABS FOR WORDS, GRID SIZE, AND STYLES
-    # -------------------------------------------------------------
-    tab_words, tab_grid, tab_style = st.tabs(["📝 Words & Content", "📐 Grid Dimensions", "🎨 Style & Audience"])
-
-    with tab_words:
-        st.markdown('<div class="panel-step">Step 2 · Word Input & Theme</div>', unsafe_allow_html=True)
-        mode = st.radio("Source", ["Import CSV", "Paste a word list"], horizontal=True)
-        
-        default_theme = st.text_input(
-            "Theme / Title",
-            value=st.session_state.get("default_theme", lang_cfg["default_theme"]),
-            help="Title of the puzzle page",
-        )
-        st.session_state["default_theme"] = default_theme
-
-        uploaded = st.file_uploader(f"CSV file ({selected_language})", type=["csv"], disabled=mode != "Import CSV")
-        
-        raw_text = st.text_area(
-            f"Words ({selected_language})",
-            value=st.session_state.get("raw_words", lang_cfg["sample_words"]),
-            height=120,
-            disabled=mode != "Paste a word list",
-            help="Enter one word per line or separated by semicolons. Letters only.",
-        )
-        if mode == "Paste a word list":
-            st.session_state["raw_words"] = raw_text
-
-        st.markdown('<div class="panel-step" style="margin-top:.45rem">Step 3 · Puzzle Rules</div>', unsafe_allow_html=True)
-        c_d1, c_d2 = st.columns(2, gap="small")
-        with c_d1:
-            difficulty = st.selectbox("Difficulty", ["easy", "medium", "hard"], index=1, help="Easy = forward (E, S) only; Medium = forward & diagonals; Hard = all 8 directions with reverse.")
-        with c_d2:
-            seed = st.number_input("Seed", min_value=0, value=42, step=1, help="Deterministic seed for reproducible puzzle layouts.")
-
-        with st.expander(f"📥 Sample CSVs & AI Prompts ({selected_language})", expanded=False):
-            ex1, ex2 = st.columns(2, gap="small")
-            with ex1:
-                st.download_button(f"Themed CSV ({lang_cfg['flag']})", lang_cfg["themed_csv"], f"themed_{lang_cfg['default_theme'].lower()}_sample.csv", "text/csv", use_container_width=True)
-            with ex2:
-                st.download_button(f"Simple CSV ({lang_cfg['flag']})", lang_cfg["simple_csv"], f"simple_{lang_cfg['default_theme'].lower()}_sample.csv", "text/csv", use_container_width=True)
-            
-            st.markdown(f"<div class='smallcaps' style='margin-top:.4rem;'>AI Prompts in {selected_language}</div>", unsafe_allow_html=True)
-            prompt_type = st.selectbox("Prompt template", list(lang_cfg["prompts"].keys()), label_visibility="collapsed")
-            st.code(lang_cfg["prompts"][prompt_type], language="text")
-
-        groups = parse_input(uploaded, mode, raw_text, default_theme, selected_language, accent_mode)
-        all_count = sum(len(v) for v in groups.values())
-        sample_note = f" · {lang_cfg['flag']} {selected_language} sample" if not uploaded and mode == "Import CSV" else ""
-        st.markdown(f'<div class="card" style="margin-top:.45rem;"><div class="smallcaps">Input Summary</div><b>{len(groups)} theme(s) · {all_count} valid word(s)</b><span style="color:#64746d;font-size:.8rem">{sample_note}</span></div>', unsafe_allow_html=True)
-
-    with tab_grid:
-        st.markdown('<div class="panel-step">Grid Sizing & Dimensions</div><div class="section-title">📐 Dimensions & Word Capacity</div>', unsafe_allow_html=True)
-        grid_size_choice = st.selectbox(
-            "Grid Dimensions",
-            [
-                "10 × 10 (Kids / Compact)",
-                "12 × 10 (Activity Book)",
-                "12 × 12 (Junior)",
-                "13 × 13 (Medium)",
-                "14 × 14 (Standard KDP)",
-                "15 × 15 (Classic Newspaper)",
-                "16 × 16 (Challenging)",
-                "Auto (from Difficulty)",
-                "Custom (Rows × Cols)",
-            ],
-            index=1,
-            help="Choose standard popular book sizes or configure custom row × column dimensions.",
-        )
-
-        if grid_size_choice == "Auto (from Difficulty)":
-            grid_rows, grid_cols = None, None
-            eff_rows = 10 if difficulty == "easy" else (13 if difficulty == "medium" else 16)
-            eff_cols = eff_rows
-        elif grid_size_choice == "Custom (Rows × Cols)":
-            c_r, c_c = st.columns(2, gap="small")
-            with c_r:
-                grid_rows = st.slider("Rows (Height)", min_value=6, max_value=25, value=12, step=1)
-            with c_c:
-                grid_cols = st.slider("Columns (Width)", min_value=6, max_value=25, value=10, step=1)
-            eff_rows, eff_cols = grid_rows, grid_cols
-        else:
-            parts = grid_size_choice.split(" ")
-            grid_rows, grid_cols = int(parts[0]), int(parts[2])
-            eff_rows, eff_cols = grid_rows, grid_cols
-
-        grid_capacity = max_words_for_grid(eff_rows, eff_cols)
-        words_per_page = st.slider(
-            "Words per page",
-            min_value=4,
-            max_value=max(25, grid_capacity + 6),
-            value=min(12, grid_capacity),
-            help=f"Optimal capacity for {eff_rows}×{eff_cols} is ~{grid_capacity} words.",
-        )
-
-        st.markdown(f"""
-        <div class="card" style="margin-top:.4rem; padding:10px 14px;">
-            <div class="smallcaps">Grid Shape & Capacity</div>
-            <b>{eff_rows} Rows × {eff_cols} Columns</b> ({eff_rows * eff_cols} total cells)<br>
-            <span style="color:#56675f; font-size:0.8rem;">
-                Suggested capacity: ~{grid_capacity} words per page · {"Landscape / Rectangular" if eff_rows != eff_cols else "Square"} layout
-            </span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with tab_style:
-        st.markdown('<div class="panel-step">Audience Themes & Visual Styling</div><div class="section-title">🎨 Theme & Line Appearance</div>', unsafe_allow_html=True)
-
-        selected_audience = st.selectbox(
-            "Audience Preset",
-            list(THEME_PRESETS.keys()),
-            index=list(THEME_PRESETS.keys()).index(st.session_state["audience_theme"]) if st.session_state["audience_theme"] in THEME_PRESETS else 1,
-            key="audience_theme_picker",
-            help="1-click preset that configures line style, thickness, and font sizes tailored to each audience.",
-        )
-
-        # Detect preset change and update values
-        if selected_audience != st.session_state.get("last_audience_theme"):
-            st.session_state["last_audience_theme"] = selected_audience
-            st.session_state["audience_theme"] = selected_audience
-            if selected_audience in THEME_PRESETS and selected_audience != "⚙️ Custom":
-                p_data = THEME_PRESETS[selected_audience]
-                st.session_state["cell_style"] = p_data["cell_style"]
-                st.session_state["grid_line_width"] = p_data["grid_line_width"]
-                st.session_state["grid_line_color"] = p_data["grid_line_color"]
-                st.session_state["font_scale"] = p_data["font_scale"]
-                st.session_state["letter_font"] = p_data["letter_font"]
-                st.session_state["letter_color"] = p_data["letter_color"]
-                st.session_state["solution_style"] = p_data["solution_style"]
-
-        st.markdown(f'<div class="theme-badge">{THEME_PRESETS[selected_audience]["description"]}</div>', unsafe_allow_html=True)
-
-        with st.expander("Grid Lines & Borders", expanded=True):
-            style_map = {
-                "none": "None (No Lines / Floating Letters)",
-                "grid": "Classic Grid Lines",
-                "boxes": "Individual Cell Boxes",
-                "rounded_boxes": "Rounded Cell Boxes (Kids Style)",
-                "outer_border": "Outer Border Only",
-            }
-            inv_style_map = {v: k for k, v in style_map.items()}
-            current_cs_key = st.session_state.get("cell_style", "grid")
-            cs_label = style_map.get(current_cs_key, "Classic Grid Lines")
-            
-            selected_style_label = st.selectbox(
-                "Cell Line Style",
-                list(style_map.values()),
-                index=list(style_map.values()).index(cs_label),
-                help="Choose border style or remove grid lines completely.",
-            )
-            st.session_state["cell_style"] = inv_style_map[selected_style_label]
-
-            line_w = st.slider(
-                "Line Thickness (mm)",
-                min_value=0.0,
-                max_value=2.5,
-                value=float(st.session_state.get("grid_line_width", 0.6)),
-                step=0.1,
-                help="Set to 0.0 mm to remove lines. 0.5 = fine, 1.0 = bold, 1.5+ = extra thick for seniors.",
-            )
-            st.session_state["grid_line_width"] = line_w
-
-            col_colors = ["Neutral Gray (#9da49f)", "Deep Black (#111815)", "Forest Green (#516d61)", "Navy Blue (#1a2c42)", "Custom Hex"]
-            cur_lc = st.session_state.get("grid_line_color", "#9da49f")
-            default_lc_idx = 0
-            if cur_lc == "#111815": default_lc_idx = 1
-            elif cur_lc == "#516d61": default_lc_idx = 2
-            elif cur_lc == "#1a2c42": default_lc_idx = 3
-            elif cur_lc not in ("#9da49f", "#111815", "#516d61", "#1a2c42"): default_lc_idx = 4
-
-            picked_line_color_opt = st.selectbox("Line Color", col_colors, index=default_lc_idx)
-            if picked_line_color_opt == "Neutral Gray (#9da49f)":
-                st.session_state["grid_line_color"] = "#9da49f"
-            elif picked_line_color_opt == "Deep Black (#111815)":
-                st.session_state["grid_line_color"] = "#111815"
-            elif picked_line_color_opt == "Forest Green (#516d61)":
-                st.session_state["grid_line_color"] = "#516d61"
-            elif picked_line_color_opt == "Navy Blue (#1a2c42)":
-                st.session_state["grid_line_color"] = "#1a2c42"
-            else:
-                st.session_state["grid_line_color"] = st.text_input("Custom Line Hex", cur_lc)
-
-        with st.expander("Letter Typography & Sizing", expanded=True):
-            f_scale = st.slider(
-                "Letter Font Size (% of cell)",
-                min_value=50,
-                max_value=88,
-                value=int(st.session_state.get("font_scale", 62)),
-                step=2,
-                help="50% = Compact, 62% = Standard balanced, 76% = Kids large print, 82% = Senior giant print.",
-            )
-            st.session_state["font_scale"] = f_scale
-
-            font_list = ["DejaVu Sans", "DejaVu Sans Bold", "DejaVu Serif", "DejaVu Serif Bold"]
-            cur_font = st.session_state.get("letter_font", "DejaVu Sans")
-            f_idx = font_list.index(cur_font) if cur_font in font_list else 0
-            st.session_state["letter_font"] = st.selectbox("Letter Font", font_list, index=f_idx)
-
-            let_colors = ["Dark Charcoal (#202a26)", "Jet Black (#000000)", "Forest Ink (#172721)", "Navy Blue (#1a2c42)", "Custom Hex"]
-            cur_let_c = st.session_state.get("letter_color", "#202a26")
-            default_let_idx = 0
-            if cur_let_c == "#000000": default_let_idx = 1
-            elif cur_let_c == "#172721": default_let_idx = 2
-            elif cur_let_c == "#1a2c42": default_let_idx = 3
-            elif cur_let_c not in ("#202a26", "#000000", "#172721", "#1a2c42"): default_let_idx = 4
-
-            picked_let_color_opt = st.selectbox("Letter Color", let_colors, index=default_let_idx)
-            if picked_let_color_opt == "Dark Charcoal (#202a26)":
-                st.session_state["letter_color"] = "#202a26"
-            elif picked_let_color_opt == "Jet Black (#000000)":
-                st.session_state["letter_color"] = "#000000"
-            elif picked_let_color_opt == "Forest Ink (#172721)":
-                st.session_state["letter_color"] = "#172721"
-            elif picked_let_color_opt == "Navy Blue (#1a2c42)":
-                st.session_state["letter_color"] = "#1a2c42"
-            else:
-                st.session_state["letter_color"] = st.text_input("Custom Letter Hex", cur_let_c)
-
-        with st.expander("Page Layout & Solutions", expanded=False):
-            show_bank = st.toggle("Display word bank", True)
-            bank_columns = st.selectbox("Word bank columns", [1, 2, 3, 4, 5], index=1)
-            
-            sol_map = {"capsule": "Capsule / Pill Highlighter", "box": "Box Outline", "bold": "Bold Letters"}
-            inv_sol_map = {v: k for k, v in sol_map.items()}
-            cur_sol = st.session_state.get("solution_style", "capsule")
-            sol_label = sol_map.get(cur_sol, "Capsule / Pill Highlighter")
-            chosen_sol_label = st.selectbox("Solution Marker", list(sol_map.values()), index=list(sol_map.values()).index(sol_label))
-            st.session_state["solution_style"] = inv_sol_map[chosen_sol_label]
-
-            include_solution_in_bulk = st.checkbox(
-                "Include solution in Canva bulk",
-                value=False,
-                help="When checked, solution images are added as an extra column in the Canva bulk Excel. When unchecked, exported separately.",
-            )
-            solutions_per_page = st.selectbox(
-                "Solutions per page",
-                [1, 2, 3, 4, 5],
-                index=3,
-                disabled=include_solution_in_bulk,
-            )
-
-# Determine fill alphabet based on language and accent mode
-active_fill_alphabet = lang_cfg["fill_alphabet"]
-if accent_mode == "Strip All Accents (A-Z)":
-    active_fill_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-# Assemble active style object
-current_style = SimpleNamespace(
-    cell_style=st.session_state["cell_style"],
-    grid_line_width=st.session_state["grid_line_width"],
-    grid_line_color=st.session_state["grid_line_color"],
-    letter_color=st.session_state["letter_color"],
-    letter_font=st.session_state["letter_font"],
-    font_scale=st.session_state["font_scale"] / 100.0,
-    letter_size_pt=None,
-    solution_style=st.session_state["solution_style"],
-    solution_color=st.session_state["letter_color"],
-    row_shading=False,
-)
-
 @st.cache_data(show_spinner=False)
-def get_puzzles(groups_dict, diff_str, words_per_page, seed_val, grid_rows=None, grid_cols=None, fill_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+def get_puzzles(
+    groups_dict,
+    diff_str,
+    words_per_page,
+    seed_val,
+    grid_rows=None,
+    grid_cols=None,
+    fill_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    target_count=None,
+):
     cfg = PuzzleConfig(
         difficulty=Difficulty(diff_str),
         words_per_page=words_per_page,
@@ -872,128 +808,1337 @@ def get_puzzles(groups_dict, diff_str, words_per_page, seed_val, grid_rows=None,
         grid_cols=grid_cols,
         fill_alphabet=fill_alphabet,
     )
-    result = []
+    base_chunks = []
     for theme, words in groups_dict.items():
         cleaned = [w for w in words if len(w) >= 3]
-        chunks = [cleaned[start:start + words_per_page]
-                  for start in range(0, len(cleaned), words_per_page)
-                  if cleaned[start:start + words_per_page]]
+        chunks = [
+            cleaned[start : start + words_per_page]
+            for start in range(0, len(cleaned), words_per_page)
+            if cleaned[start : start + words_per_page]
+        ]
         if len(chunks) > 1 and len(chunks[-1]) < words_per_page:
             chunks = chunks[:-1]
-        for chunk in chunks:
-            local = cfg.model_copy(deep=True)
-            local.seed = int(seed_val) + len(result)
-            result.append(generate_reliably(chunk, local, theme))
+        for c in chunks:
+            base_chunks.append((theme, c))
+
+    if not base_chunks:
+        return []
+
+    result = []
+    total_needed = target_count if (target_count and target_count > 0) else len(base_chunks)
+    for i in range(total_needed):
+        theme, chunk = base_chunks[i % len(base_chunks)]
+        local = cfg.model_copy(deep=True)
+        local.seed = int(seed_val) + i * 19
+        theme_title = theme if total_needed <= len(base_chunks) else f"{theme} #{i + 1}"
+        result.append(generate_reliably(chunk, local, theme_title))
+
     return result
 
-with preview_area:
-    if groups:
-        puzzles = get_puzzles(
-            dict(groups),
-            difficulty,
-            words_per_page,
-            seed,
-            grid_rows,
-            grid_cols,
-            active_fill_alphabet,
-        )
-        
-        # Clear old export files if parameters, language, or styling change
-        puz_hash = hash(
-            str(dict(groups)) + difficulty + str(words_per_page) + str(seed) +
-            str(grid_rows) + str(grid_cols) + str(active_fill_alphabet) + selected_language
-        )
-        style_hash = hash(
-            f"{current_style.cell_style}_{current_style.grid_line_width}_{current_style.grid_line_color}_"
-            f"{current_style.font_scale}_{current_style.letter_font}_{current_style.letter_color}_{current_style.solution_style}"
-        )
-        combined_hash = hash((puz_hash, style_hash))
 
-        if st.session_state.get("last_combined_hash") != combined_hash:
-            st.session_state["last_combined_hash"] = combined_hash
-            for k in ["canva_bytes", "solutions_bytes", "zip_bytes"]:
+with tab_ws:
+    # Initialize Word Search session states
+    if "selected_language" not in st.session_state:
+        st.session_state["selected_language"] = "English"
+    if "last_selected_language" not in st.session_state:
+        st.session_state["last_selected_language"] = "English"
+        st.session_state["default_theme"] = LANGUAGE_CONFIGS["English"]["default_theme"]
+        st.session_state["raw_words"] = LANGUAGE_CONFIGS["English"]["sample_words"]
+
+    if "audience_theme" not in st.session_state:
+        st.session_state["audience_theme"] = "👔 Adult Classic"
+    if "last_audience_theme" not in st.session_state:
+        st.session_state["last_audience_theme"] = "👔 Adult Classic"
+        init_p = THEME_PRESETS["👔 Adult Classic"]
+        st.session_state["cell_style"] = init_p["cell_style"]
+        st.session_state["grid_line_width"] = init_p["grid_line_width"]
+        st.session_state["grid_line_color"] = init_p["grid_line_color"]
+        st.session_state["font_scale"] = init_p["font_scale"]
+        st.session_state["letter_font"] = init_p["letter_font"]
+        st.session_state["letter_color"] = init_p["letter_color"]
+        st.session_state["solution_style"] = init_p["solution_style"]
+
+    ws_controls, ws_preview = st.columns([1.02, 1.44], gap="medium")
+
+    with ws_controls:
+        st.markdown('<div class="scrollable-controls">', unsafe_allow_html=True)
+        # Step 1: Language
+        st.markdown(
+            '<div class="ctrl-card"><div class="panel-step">Step 1 · Language & Alphabet</div><div class="section-title">🌍 Select Puzzle Language</div>',
+            unsafe_allow_html=True,
+        )
+        lang_names = list(LANGUAGE_CONFIGS.keys())
+        current_lang_idx = (
+            lang_names.index(st.session_state["selected_language"])
+            if st.session_state["selected_language"] in lang_names
+            else 0
+        )
+        selected_language = st.selectbox(
+            "Language",
+            lang_names,
+            index=current_lang_idx,
+            label_visibility="collapsed",
+            key="ws_lang_selector",
+            help="Select language. Prompts, sample words, themes, and fill alphabets adapt automatically.",
+        )
+        if selected_language != st.session_state.get("last_selected_language"):
+            st.session_state["last_selected_language"] = selected_language
+            st.session_state["selected_language"] = selected_language
+            new_lang_cfg = LANGUAGE_CONFIGS[selected_language]
+            st.session_state["default_theme"] = new_lang_cfg["default_theme"]
+            st.session_state["raw_words"] = new_lang_cfg["sample_words"]
+
+        lang_cfg = LANGUAGE_CONFIGS[selected_language]
+        st.markdown(
+            f'<div class="lang-badge">{lang_cfg["flag"]} <b>{selected_language}</b>: {lang_cfg["badge_info"]}</div>',
+            unsafe_allow_html=True,
+        )
+
+        c_acc1, c_acc2 = st.columns([1.3, 0.7], gap="small")
+        with c_acc1:
+            accent_mode = st.selectbox(
+                "Accents & Diacritics",
+                ["Standard Book Mode", "Preserve Exact Accents", "Strip All Accents (A-Z)"],
+                index=0,
+                key="ws_accent_mode",
+                help="Standard Book Mode keeps official language letters (Ñ for Spanish, Ä/Ö/Ü for German).",
+            )
+        with c_acc2:
+            if st.button("🔄 Reset Sample", key="ws_reset_btn", help=f"Reset to {selected_language} defaults"):
+                st.session_state["default_theme"] = lang_cfg["default_theme"]
+                st.session_state["raw_words"] = lang_cfg["sample_words"]
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Tabs for Content, Dimensions, Styles
+        ws_tab_words, ws_tab_grid, ws_tab_style = st.tabs(
+            ["📝 Words & Content", "📐 Grid Dimensions", "🎨 Style & Audience"]
+        )
+
+        with ws_tab_words:
+            st.markdown('<div class="panel-step">Step 2 · Word Input & Theme</div>', unsafe_allow_html=True)
+            mode = st.radio("Source", ["Import CSV", "Paste a word list"], horizontal=True, key="ws_source_mode")
+            default_theme = st.text_input(
+                "Theme / Title",
+                value=st.session_state.get("default_theme", lang_cfg["default_theme"]),
+                key="ws_theme_input",
+                help="Title of the puzzle page",
+            )
+            st.session_state["default_theme"] = default_theme
+
+            uploaded = st.file_uploader(
+                f"CSV file ({selected_language})", type=["csv"], disabled=mode != "Import CSV", key="ws_csv_upload"
+            )
+            raw_text = st.text_area(
+                f"Words ({selected_language})",
+                value=st.session_state.get("raw_words", lang_cfg["sample_words"]),
+                height=110,
+                disabled=mode != "Paste a word list",
+                key="ws_raw_words_input",
+                help="Enter one word per line or separated by semicolons. Letters only.",
+            )
+            if mode == "Paste a word list":
+                st.session_state["raw_words"] = raw_text
+
+            # Custom Number of Puzzles Control
+            c_cnt_tog, c_cnt_val = st.columns([1.1, 0.9], gap="small")
+            with c_cnt_tog:
+                ws_custom_count_enabled = st.toggle(
+                    "Custom Puzzle Count",
+                    value=False,
+                    key="ws_cust_count_tog",
+                    help="Enable to specify an exact number of puzzle pages to produce.",
+                )
+            with c_cnt_val:
+                ws_target_puzzles = st.number_input(
+                    "Target Puzzles",
+                    min_value=1,
+                    max_value=200,
+                    value=12,
+                    step=1,
+                    disabled=not ws_custom_count_enabled,
+                    key="ws_target_puz_in",
+                )
+
+            st.markdown(
+                '<div class="panel-step" style="margin-top:.45rem">Step 3 · Puzzle Rules</div>',
+                unsafe_allow_html=True,
+            )
+            c_d1, c_d2 = st.columns(2, gap="small")
+            with c_d1:
+                difficulty = st.selectbox(
+                    "Difficulty",
+                    ["easy", "medium", "hard"],
+                    index=1,
+                    key="ws_diff_select",
+                    help="Easy = forward (E, S) only; Medium = forward & diagonals; Hard = all 8 directions with reverse.",
+                )
+            with c_d2:
+                seed = st.number_input(
+                    "Seed",
+                    min_value=0,
+                    value=42,
+                    step=1,
+                    key="ws_seed_input",
+                    help="Deterministic seed for reproducible puzzle layouts.",
+                )
+
+            with st.expander(f"📥 Sample CSVs & AI Prompts ({selected_language})", expanded=False):
+                ex1, ex2 = st.columns(2, gap="small")
+                with ex1:
+                    st.download_button(
+                        f"Themed CSV ({lang_cfg['flag']})",
+                        lang_cfg["themed_csv"],
+                        f"themed_{lang_cfg['default_theme'].lower()}_sample.csv",
+                        "text/csv",
+                        use_container_width=True,
+                    )
+                with ex2:
+                    st.download_button(
+                        f"Simple CSV ({lang_cfg['flag']})",
+                        lang_cfg["simple_csv"],
+                        f"simple_{lang_cfg['default_theme'].lower()}_sample.csv",
+                        "text/csv",
+                        use_container_width=True,
+                    )
+                st.markdown(
+                    f"<div class='smallcaps' style='margin-top:.4rem;'>AI Prompts in {selected_language}</div>",
+                    unsafe_allow_html=True,
+                )
+                prompt_type = st.selectbox(
+                    "Prompt template", list(lang_cfg["prompts"].keys()), label_visibility="collapsed", key="ws_prompt_tpl"
+                )
+                st.code(lang_cfg["prompts"][prompt_type], language="text")
+
+            groups = parse_input(uploaded, mode, raw_text, default_theme, selected_language, accent_mode)
+            all_count = sum(len(v) for v in groups.values())
+            sample_note = (
+                f" · {lang_cfg['flag']} {selected_language} sample" if not uploaded and mode == "Import CSV" else ""
+            )
+            st.markdown(
+                f'<div class="card" style="margin-top:.45rem;"><div class="smallcaps">Input Summary</div><b>{len(groups)} theme(s) · {all_count} valid word(s)</b><span style="color:#64746d;font-size:.8rem">{sample_note}</span></div>',
+                unsafe_allow_html=True,
+            )
+
+        with ws_tab_grid:
+            st.markdown(
+                '<div class="panel-step">Grid Sizing & Dimensions</div><div class="section-title">📐 Dimensions & Word Capacity</div>',
+                unsafe_allow_html=True,
+            )
+            grid_size_choice = st.selectbox(
+                "Grid Dimensions",
+                [
+                    "10 × 10 (Kids / Compact)",
+                    "12 × 10 (Activity Book)",
+                    "12 × 12 (Junior)",
+                    "13 × 13 (Medium)",
+                    "14 × 14 (Standard KDP)",
+                    "15 × 15 (Classic Newspaper)",
+                    "16 × 16 (Challenging)",
+                    "Auto (from Difficulty)",
+                    "Custom (Rows × Cols)",
+                ],
+                index=1,
+                key="ws_grid_size_choice",
+                help="Choose standard popular book sizes or configure custom dimensions.",
+            )
+
+            if grid_size_choice == "Auto (from Difficulty)":
+                grid_rows, grid_cols = None, None
+                eff_rows = 10 if difficulty == "easy" else (13 if difficulty == "medium" else 16)
+                eff_cols = eff_rows
+            elif grid_size_choice == "Custom (Rows × Cols)":
+                c_r, c_c = st.columns(2, gap="small")
+                with c_r:
+                    grid_rows = st.slider("Rows (Height)", min_value=6, max_value=25, value=12, step=1, key="ws_cust_rows")
+                with c_c:
+                    grid_cols = st.slider("Columns (Width)", min_value=6, max_value=25, value=10, step=1, key="ws_cust_cols")
+                eff_rows, eff_cols = grid_rows, grid_cols
+            else:
+                parts = grid_size_choice.split(" ")
+                grid_rows, grid_cols = int(parts[0]), int(parts[2])
+                eff_rows, eff_cols = grid_rows, grid_cols
+
+            grid_capacity = max_words_for_grid(eff_rows, eff_cols)
+            words_per_page = st.slider(
+                "Words per page",
+                min_value=4,
+                max_value=max(25, grid_capacity + 6),
+                value=min(12, grid_capacity),
+                key="ws_words_per_page_slider",
+                help=f"Optimal capacity for {eff_rows}×{eff_cols} is ~{grid_capacity} words.",
+            )
+
+            st.markdown(
+                f"""
+            <div class="card" style="margin-top:.4rem; padding:10px 14px;">
+                <div class="smallcaps">Grid Shape & Capacity</div>
+                <b>{eff_rows} Rows × {eff_cols} Columns</b> ({eff_rows * eff_cols} total cells)<br>
+                <span style="color:#56675f; font-size:0.8rem;">
+                    Suggested capacity: ~{grid_capacity} words per page · {"Landscape / Rectangular" if eff_rows != eff_cols else "Square"} layout
+                </span>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+
+        with ws_tab_style:
+            st.markdown(
+                '<div class="panel-step">Audience Themes & Visual Styling</div><div class="section-title">🎨 Theme & Line Appearance</div>',
+                unsafe_allow_html=True,
+            )
+            selected_audience = st.selectbox(
+                "Audience Preset",
+                list(THEME_PRESETS.keys()),
+                index=list(THEME_PRESETS.keys()).index(st.session_state["audience_theme"])
+                if st.session_state["audience_theme"] in THEME_PRESETS
+                else 1,
+                key="ws_audience_theme_picker",
+                help="1-click preset that configures line style, thickness, and font sizes tailored to each audience.",
+            )
+
+            if selected_audience != st.session_state.get("last_audience_theme"):
+                st.session_state["last_audience_theme"] = selected_audience
+                st.session_state["audience_theme"] = selected_audience
+                if selected_audience in THEME_PRESETS and selected_audience != "⚙️ Custom":
+                    p_data = THEME_PRESETS[selected_audience]
+                    st.session_state["cell_style"] = p_data["cell_style"]
+                    st.session_state["grid_line_width"] = p_data["grid_line_width"]
+                    st.session_state["grid_line_color"] = p_data["grid_line_color"]
+                    st.session_state["font_scale"] = p_data["font_scale"]
+                    st.session_state["letter_font"] = p_data["letter_font"]
+                    st.session_state["letter_color"] = p_data["letter_color"]
+                    st.session_state["solution_style"] = p_data["solution_style"]
+
+            st.markdown(
+                f'<div class="theme-badge">{THEME_PRESETS[selected_audience]["description"]}</div>',
+                unsafe_allow_html=True,
+            )
+
+            with st.expander("Grid Lines & Borders", expanded=True):
+                style_map = {
+                    "none": "None (No Lines / Floating Letters)",
+                    "grid": "Classic Grid Lines",
+                    "boxes": "Individual Cell Boxes",
+                    "rounded_boxes": "Rounded Cell Boxes (Kids Style)",
+                    "outer_border": "Outer Border Only",
+                }
+                inv_style_map = {v: k for k, v in style_map.items()}
+                current_cs_key = st.session_state.get("cell_style", "grid")
+                cs_label = style_map.get(current_cs_key, "Classic Grid Lines")
+
+                selected_style_label = st.selectbox(
+                    "Cell Line Style",
+                    list(style_map.values()),
+                    index=list(style_map.values()).index(cs_label),
+                    key="ws_cell_style_sel",
+                    help="Choose border style or remove grid lines completely.",
+                )
+                st.session_state["cell_style"] = inv_style_map[selected_style_label]
+
+                line_w = st.slider(
+                    "Line Thickness (mm)",
+                    min_value=0.0,
+                    max_value=2.5,
+                    value=float(st.session_state.get("grid_line_width", 0.6)),
+                    step=0.1,
+                    key="ws_line_w_slider",
+                )
+                st.session_state["grid_line_width"] = line_w
+
+                col_colors = [
+                    "Neutral Gray (#9da49f)",
+                    "Deep Black (#111815)",
+                    "Forest Green (#516d61)",
+                    "Navy Blue (#1a2c42)",
+                    "Custom Hex",
+                ]
+                cur_lc = st.session_state.get("grid_line_color", "#9da49f")
+                default_lc_idx = 0
+                if cur_lc == "#111815":
+                    default_lc_idx = 1
+                elif cur_lc == "#516d61":
+                    default_lc_idx = 2
+                elif cur_lc == "#1a2c42":
+                    default_lc_idx = 3
+                elif cur_lc not in ("#9da49f", "#111815", "#516d61", "#1a2c42"):
+                    default_lc_idx = 4
+
+                picked_line_color_opt = st.selectbox(
+                    "Line Color", col_colors, index=default_lc_idx, key="ws_line_color_pick"
+                )
+                if picked_line_color_opt == "Neutral Gray (#9da49f)":
+                    st.session_state["grid_line_color"] = "#9da49f"
+                elif picked_line_color_opt == "Deep Black (#111815)":
+                    st.session_state["grid_line_color"] = "#111815"
+                elif picked_line_color_opt == "Forest Green (#516d61)":
+                    st.session_state["grid_line_color"] = "#516d61"
+                elif picked_line_color_opt == "Navy Blue (#1a2c42)":
+                    st.session_state["grid_line_color"] = "#1a2c42"
+                else:
+                    st.session_state["grid_line_color"] = st.text_input(
+                        "Custom Line Hex", cur_lc, key="ws_line_hex_in"
+                    )
+
+            with st.expander("Letter Typography & Sizing", expanded=True):
+                f_scale = st.slider(
+                    "Letter Font Size (% of cell)",
+                    min_value=50,
+                    max_value=88,
+                    value=int(st.session_state.get("font_scale", 62)),
+                    step=2,
+                    key="ws_font_scale_slider",
+                )
+                st.session_state["font_scale"] = f_scale
+
+                font_list = ["DejaVu Sans", "DejaVu Sans Bold", "DejaVu Serif", "DejaVu Serif Bold"]
+                cur_font = st.session_state.get("letter_font", "DejaVu Sans")
+                f_idx = font_list.index(cur_font) if cur_font in font_list else 0
+                st.session_state["letter_font"] = st.selectbox(
+                    "Letter Font", font_list, index=f_idx, key="ws_letter_font_sel"
+                )
+
+                let_colors = [
+                    "Dark Charcoal (#202a26)",
+                    "Jet Black (#000000)",
+                    "Forest Ink (#172721)",
+                    "Navy Blue (#1a2c42)",
+                    "Custom Hex",
+                ]
+                cur_let_c = st.session_state.get("letter_color", "#202a26")
+                default_let_idx = 0
+                if cur_let_c == "#000000":
+                    default_let_idx = 1
+                elif cur_let_c == "#172721":
+                    default_let_idx = 2
+                elif cur_let_c == "#1a2c42":
+                    default_let_idx = 3
+                elif cur_let_c not in ("#202a26", "#000000", "#172721", "#1a2c42"):
+                    default_let_idx = 4
+
+                picked_let_color_opt = st.selectbox(
+                    "Letter Color", let_colors, index=default_let_idx, key="ws_let_color_pick"
+                )
+                if picked_let_color_opt == "Dark Charcoal (#202a26)":
+                    st.session_state["letter_color"] = "#202a26"
+                elif picked_let_color_opt == "Jet Black (#000000)":
+                    st.session_state["letter_color"] = "#000000"
+                elif picked_let_color_opt == "Forest Ink (#172721)":
+                    st.session_state["letter_color"] = "#172721"
+                elif picked_let_color_opt == "Navy Blue (#1a2c42)":
+                    st.session_state["letter_color"] = "#1a2c42"
+                else:
+                    st.session_state["letter_color"] = st.text_input(
+                        "Custom Letter Hex", cur_let_c, key="ws_let_hex_in"
+                    )
+
+            with st.expander("Page Layout & Solutions", expanded=False):
+                show_bank = st.toggle("Display word bank", True, key="ws_show_bank_tog")
+                bank_columns = st.selectbox("Word bank columns", [1, 2, 3, 4, 5], index=1, key="ws_bank_cols_sel")
+
+                sol_map = {"capsule": "Capsule / Pill Highlighter", "box": "Box Outline", "bold": "Bold Letters"}
+                inv_sol_map = {v: k for k, v in sol_map.items()}
+                cur_sol = st.session_state.get("solution_style", "capsule")
+                sol_label = sol_map.get(cur_sol, "Capsule / Pill Highlighter")
+                chosen_sol_label = st.selectbox(
+                    "Solution Marker",
+                    list(sol_map.values()),
+                    index=list(sol_map.values()).index(sol_label),
+                    key="ws_sol_style_sel",
+                )
+                st.session_state["solution_style"] = inv_sol_map[chosen_sol_label]
+
+                include_solution_in_bulk = st.checkbox(
+                    "Include solution in Canva bulk", value=False, key="ws_sol_in_bulk_chk"
+                )
+                solutions_per_page = st.selectbox(
+                    "Solutions per page", [1, 2, 3, 4, 5], index=3, disabled=include_solution_in_bulk, key="ws_sols_per_page_sel"
+                )
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    active_fill_alphabet = lang_cfg["fill_alphabet"]
+    if accent_mode == "Strip All Accents (A-Z)":
+        active_fill_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+    current_style = SimpleNamespace(
+        cell_style=st.session_state["cell_style"],
+        grid_line_width=st.session_state["grid_line_width"],
+        grid_line_color=st.session_state["grid_line_color"],
+        letter_color=st.session_state["letter_color"],
+        letter_font=st.session_state["letter_font"],
+        font_scale=st.session_state["font_scale"] / 100.0,
+        letter_size_pt=None,
+        solution_style=st.session_state["solution_style"],
+        solution_color=st.session_state["letter_color"],
+        row_shading=False,
+    )
+
+    with ws_preview:
+        if groups:
+            target_puz_val = ws_target_puzzles if ws_custom_count_enabled else None
+            puzzles = get_puzzles(
+                dict(groups),
+                difficulty,
+                words_per_page,
+                seed,
+                grid_rows,
+                grid_cols,
+                active_fill_alphabet,
+                target_count=target_puz_val,
+            )
+
+            puz_hash = hash(
+                str(dict(groups))
+                + difficulty
+                + str(words_per_page)
+                + str(seed)
+                + str(grid_rows)
+                + str(grid_cols)
+                + str(active_fill_alphabet)
+                + selected_language
+                + str(target_puz_val)
+            )
+            style_hash = hash(
+                f"{current_style.cell_style}_{current_style.grid_line_width}_{current_style.grid_line_color}_"
+                f"{current_style.font_scale}_{current_style.letter_font}_{current_style.letter_color}_{current_style.solution_style}"
+            )
+            combined_hash = hash((puz_hash, style_hash))
+
+            if st.session_state.get("last_combined_hash") != combined_hash:
+                st.session_state["last_combined_hash"] = combined_hash
+                for k in ["canva_bytes", "solutions_bytes", "zip_bytes"]:
+                    st.session_state.pop(k, None)
+
+            if puzzles:
+                c1, c2, c3, c4, c5 = st.columns(5, gap="small")
+                c1.metric("Pages", len(puzzles))
+                c2.metric("Language", f"{lang_cfg['flag']} {selected_language.split(' ')[0]}")
+                c3.metric("Grid Size", f"{puzzles[0].rows} × {puzzles[0].cols}")
+                line_desc = (
+                    "No Lines"
+                    if current_style.grid_line_width == 0 or current_style.cell_style == "none"
+                    else f"{current_style.cell_style.replace('_', ' ').title()} ({current_style.grid_line_width}mm)"
+                )
+                c4.metric("Border", line_desc)
+                c5.metric("Font Scale", f"{int(current_style.font_scale * 100)}%")
+
+                preview_col, export_col = st.columns([1.55, 0.75], gap="small")
+                with preview_col:
+                    top_p1, top_p2 = st.columns([1.2, 1.2], gap="small")
+                    with top_p2:
+                        view_mode = st.radio(
+                            "View Mode",
+                            ["🔲 Single Puzzle", "🎯 Single Solution", "📑 Solution Page (Book)"],
+                            horizontal=True,
+                            label_visibility="collapsed",
+                            key="ws_view_mode_rad",
+                        )
+
+                    if view_mode == "📑 Solution Page (Book)":
+                        total_sol_pages = max(1, math.ceil(len(puzzles) / solutions_per_page))
+                        with top_p1:
+                            sol_page_idx = st.selectbox(
+                                "Solution Page",
+                                range(1, total_sol_pages + 1),
+                                format_func=lambda x: f"Solution Page {x} of {total_sol_pages} (Puzzles {(x-1)*solutions_per_page + 1}–{min(len(puzzles), x*solutions_per_page)})",
+                                label_visibility="collapsed",
+                                key="ws_sol_page_sel",
+                            )
+
+                        start_i = (sol_page_idx - 1) * solutions_per_page
+                        end_i = start_i + solutions_per_page
+                        sol_slice = puzzles[start_i:end_i]
+                        page_img = render_word_search_solution_page_image(
+                            sol_slice, current_style, solutions_per_page, sol_page_idx, total_sol_pages, dpi=160
+                        )
+                        st.image(page_img, use_container_width=True)
+                        st.caption(
+                            f"📑 Book Solution Page Preview: showing {len(sol_slice)} of {solutions_per_page} solutions per page."
+                        )
+                    else:
+                        with top_p1:
+                            selected = st.selectbox(
+                                "Preview page",
+                                range(1, len(puzzles) + 1),
+                                format_func=lambda x: f"Page {x}: {puzzles[x-1].theme}",
+                                label_visibility="collapsed",
+                                key="ws_preview_page_sel",
+                            )
+
+                        st.image(
+                            render_png(
+                                puzzles[selected - 1],
+                                bank_columns,
+                                False,
+                                solution=(view_mode == "🎯 Single Solution"),
+                                compact=True,
+                                style=current_style,
+                            ),
+                            use_container_width=True,
+                        )
+                        if show_bank:
+                            render_word_bank(
+                                puzzles[selected - 1].words,
+                                bank_columns,
+                                title=lang_cfg.get("word_bank_title", "Word bank"),
+                            )
+                        if puzzles[selected - 1].skipped:
+                            st.warning("Some words could not be placed: " + ", ".join(puzzles[selected - 1].skipped))
+
+                with export_col:
+                    st.markdown('<div class="section-title">Export Canva Bundle</div>', unsafe_allow_html=True)
+                    if include_solution_in_bulk:
+                        st.caption("Solutions: included in Canva bulk")
+                    else:
+                        st.caption(f"Solutions: {solutions_per_page} per page (separate workbook)")
+
+                    if st.button("Generate Export Bundle", type="primary", use_container_width=True, key="ws_gen_btn"):
+                        progress_bar = st.progress(0, text="Starting generation...")
+                        out_dir = tempfile.mkdtemp(prefix="word_search_studio_")
+                        canva_path, solutions_path, zip_path = build_workbooks(
+                            puzzles,
+                            out_dir,
+                            show_bank,
+                            bank_columns,
+                            solutions_per_page,
+                            include_solution_in_bulk=include_solution_in_bulk,
+                            progress_bar=progress_bar,
+                            style=current_style,
+                        )
+
+                        if progress_bar:
+                            progress_bar.progress(100, text="Export bundle ready!")
+
+                        st.session_state["canva_bytes"] = Path(canva_path).read_bytes()
+                        st.session_state["solutions_bytes"] = (
+                            Path(solutions_path).read_bytes() if solutions_path else None
+                        )
+                        st.session_state["zip_bytes"] = Path(zip_path).read_bytes()
+                        st.session_state["solution_in_bulk"] = include_solution_in_bulk
+                        st.success("Export ready with custom grid styles!")
+
+                    if "canva_bytes" in st.session_state:
+                        st.download_button(
+                            "📦 Canva Excel",
+                            st.session_state["canva_bytes"],
+                            "word_search_canva_bulk.xlsx",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            key="ws_down_canva",
+                        )
+                        if st.session_state.get("solutions_bytes"):
+                            st.download_button(
+                                "📑 Solutions Excel",
+                                st.session_state["solutions_bytes"],
+                                "word_search_solutions.xlsx",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True,
+                                key="ws_down_sol",
+                            )
+                        st.download_button(
+                            "🗂️ Canva ZIP (Images + Workbooks)",
+                            st.session_state["zip_bytes"],
+                            "word_search_canva_export.zip",
+                            "application/zip",
+                            use_container_width=True,
+                            key="ws_down_zip",
+                        )
+
+                    st.markdown("<div style='height:.35rem'></div>", unsafe_allow_html=True)
+                    render_square_ad()
+            else:
+                st.info("Add at least one valid word of three or more letters.")
+        else:
+            st.info("Import a CSV or paste words to begin.")
+
+
+# ==============================================================================
+# TAB 2: SUDOKU STUDIO
+# ==============================================================================
+@st.cache_data(show_spinner=False)
+def get_sudoku_batch(
+    p_type_val: str,
+    diff_val: str,
+    count: int,
+    start_num: int,
+    seed_val: int,
+    symmetric: bool,
+    wordoku_word: str,
+    custom_clues: int | None,
+    title_tpl: str,
+) -> list[SudokuPuzzle]:
+    cfg = SudokuConfig(
+        puzzle_type=SudokuType(p_type_val),
+        difficulty=SudokuDifficulty(diff_val),
+        target_clues=custom_clues,
+        seed=int(seed_val),
+        symmetric=symmetric,
+        wordoku_word=wordoku_word,
+        title_template=title_tpl,
+    )
+    results = []
+    for i in range(count):
+        p_id = start_num + i
+        p = generate_sudoku_puzzle(p_id, cfg)
+        results.append(p)
+    return results
+
+
+with tab_sudoku:
+    # Initialize Sudoku session state
+    if "sudoku_preset" not in st.session_state:
+        st.session_state["sudoku_preset"] = "👔 Adult Classic"
+    if "last_sudoku_preset" not in st.session_state:
+        st.session_state["last_sudoku_preset"] = "👔 Adult Classic"
+        init_s = SUDOKU_PRESETS["👔 Adult Classic"]
+        st.session_state["s_cell_style"] = init_s["cell_style"]
+        st.session_state["s_outer_line_width"] = init_s["outer_line_width"]
+        st.session_state["s_block_line_width"] = init_s["block_line_width"]
+        st.session_state["s_inner_line_width"] = init_s["inner_line_width"]
+        st.session_state["s_grid_color"] = init_s["grid_color"]
+        st.session_state["s_shading_mode"] = init_s["shading_mode"]
+        st.session_state["s_shading_color"] = init_s["shading_color"]
+        st.session_state["s_font_scale"] = init_s["font_scale"]
+        st.session_state["s_clue_font"] = init_s["clue_font"]
+        st.session_state["s_clue_color"] = init_s["clue_color"]
+        st.session_state["s_solution_color"] = init_s["solution_color"]
+        st.session_state["s_solution_mode"] = init_s["solution_mode"]
+
+    sdk_controls, sdk_preview = st.columns([1.02, 1.44], gap="medium")
+
+    with sdk_controls:
+        st.markdown('<div class="scrollable-controls">', unsafe_allow_html=True)
+        # Step 1: Puzzle Type & Rules
+        st.markdown(
+            '<div class="ctrl-card"><div class="panel-step">Step 1 · Puzzle Type & Rules</div><div class="section-title">🧩 Select Sudoku Game Type</div>',
+            unsafe_allow_html=True,
+        )
+
+        type_options = {
+            "Classic 9×9 (Standard)": SudokuType.CLASSIC_9X9,
+            "Kids Mini 4×4 (Ages 4-8)": SudokuType.MINI_4X4,
+            "Junior 6×6 (Ages 7-12)": SudokuType.JUNIOR_6X6,
+            "Wordoku (Letter 9×9)": SudokuType.WORDOKU_9X9,
+            "Sudoku X (Diagonal Constraints)": SudokuType.SUDOKU_X,
+            "Windoku (Hyper 4-Window)": SudokuType.WINDOKU,
+        }
+        picked_type_label = st.selectbox(
+            "Game Type",
+            list(type_options.keys()),
+            index=0,
+            key="sdk_type_selector",
+            help="Choose standard 9x9, kids mini grids, letter wordoku, or popular diagonal/window variants.",
+        )
+        selected_sudoku_type = type_options[picked_type_label]
+
+        diff_options = {
+            "Very Easy (Beginner)": SudokuDifficulty.VERY_EASY,
+            "Easy (Casual)": SudokuDifficulty.EASY,
+            "Medium (Standard)": SudokuDifficulty.MEDIUM,
+            "Hard (Challenging)": SudokuDifficulty.HARD,
+            "Expert (Master / Evil)": SudokuDifficulty.EXPERT,
+        }
+        picked_diff_label = st.selectbox(
+            "Difficulty Level",
+            list(diff_options.keys()),
+            index=2,
+            key="sdk_diff_selector",
+            help="Difficulty determines clue density and solving techniques required.",
+        )
+        selected_difficulty = diff_options[picked_diff_label]
+
+        dim_size = 4 if selected_sudoku_type == SudokuType.MINI_4X4 else (6 if selected_sudoku_type == SudokuType.JUNIOR_6X6 else 9)
+        std_clues = get_default_clues(dim_size, selected_difficulty)
+        stars = DIFFICULTY_STARS[selected_difficulty]
+
+        st.markdown(
+            f'<div class="lang-badge"><b>{DIFFICULTY_LABELS[selected_difficulty]} {stars}</b>: ~{std_clues} clues on {dim_size}×{dim_size} grid · {TYPE_LABELS[selected_sudoku_type]}</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Wordoku Word configuration
+        wordoku_word_val = "PUBLISHER"
+        if selected_sudoku_type == SudokuType.WORDOKU_9X9:
+            st.markdown('<div class="panel-step" style="margin-top:.4rem">Wordoku Keyword</div>', unsafe_allow_html=True)
+            w_c1, w_c2 = st.columns([1.1, 0.9], gap="small")
+            with w_c1:
+                preset_word = st.selectbox(
+                    "Preset 9-Letter Words",
+                    DEFAULT_WORDOKU_WORDS,
+                    index=0,
+                    key="sdk_wordoku_preset",
+                    help="Select a curated 9-letter keyword with distinct letters.",
+                )
+            with w_c2:
+                custom_word = st.text_input(
+                    "Or Custom Word",
+                    value=preset_word,
+                    max_chars=12,
+                    key="sdk_wordoku_custom",
+                    help="Type any word with 9 unique letters.",
+                )
+            cleaned_letters = clean_wordoku_letters(custom_word or preset_word)
+            wordoku_word_val = "".join(cleaned_letters)
+            st.markdown(
+                f"<div class='status-pill'>Anagram Keyword: <b>{wordoku_word_val}</b> ({', '.join(cleaned_letters)})</div>",
+                unsafe_allow_html=True,
+            )
+
+        # Clue symmetry & fine-tuning
+        c_sym1, c_sym2 = st.columns([1.1, 0.9], gap="small")
+        with c_sym1:
+            symmetric_clues = st.toggle(
+                "Rotational Symmetry (180°)",
+                value=True,
+                key="sdk_sym_toggle",
+                help="Symmetric clue patterns create elegant, authentic print-quality puzzle book pages.",
+            )
+        with c_sym2:
+            custom_clues_enabled = st.toggle("Custom Clue Count", value=False, key="sdk_cust_clues_toggle")
+
+        custom_clues_val = None
+        if custom_clues_enabled:
+            min_c = 4 if dim_size == 4 else (10 if dim_size == 6 else 20)
+            max_c = 12 if dim_size == 4 else (26 if dim_size == 6 else 55)
+            custom_clues_val = st.slider(
+                "Exact Target Clues",
+                min_value=min_c,
+                max_value=max_c,
+                value=std_clues,
+                step=1,
+                key="sdk_clues_slider",
+            )
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Tabs for Batch Volume & Visual Styling
+        sdk_tab_vol, sdk_tab_style = st.tabs(["📚 Book Volume & Count", "🎨 Style & Audience"])
+
+        with sdk_tab_vol:
+            st.markdown(
+                '<div class="panel-step">Book Generation Settings</div><div class="section-title">📚 Batch Puzzles & Numbering</div>',
+                unsafe_allow_html=True,
+            )
+
+            # Custom count: slider + direct custom number input for unlimited customization
+            c_cnt_s1, c_cnt_s2 = st.columns([1.1, 0.9], gap="small")
+            with c_cnt_s1:
+                sdk_count_slider_val = st.slider(
+                    "Puzzles Slider (1–100)",
+                    min_value=1,
+                    max_value=100,
+                    value=12,
+                    step=1,
+                    key="sdk_count_slider",
+                    help="Quick slider for standard book batches.",
+                )
+            with c_cnt_s2:
+                sdk_count = st.number_input(
+                    "Exact Custom Count",
+                    min_value=1,
+                    max_value=300,
+                    value=sdk_count_slider_val,
+                    step=1,
+                    key="sdk_exact_custom_count_in",
+                    help="Type any custom number of puzzles up to 300.",
+                )
+
+            c_n1, c_n2 = st.columns(2, gap="small")
+            with c_n1:
+                sdk_start_num = st.number_input(
+                    "Starting Puzzle Number",
+                    min_value=1,
+                    value=1,
+                    step=1,
+                    key="sdk_start_num_in",
+                    help="E.g., start at 51 if creating Volume 2 of your puzzle book series.",
+                )
+            with c_n2:
+                sdk_seed = st.number_input(
+                    "Random Seed",
+                    min_value=0,
+                    value=42,
+                    step=1,
+                    key="sdk_seed_in",
+                    help="Deterministic seed for exact reproducible puzzle layouts.",
+                )
+
+            sdk_title_template = st.text_input(
+                "Title Template",
+                value="Sudoku #{num}",
+                key="sdk_title_tpl_in",
+                help="Template for puzzle titles. Tokens available: {num}, {diff}, {type}",
+            )
+
+            st.markdown(
+                f"""
+            <div class="card" style="margin-top:.4rem; padding:10px 14px;">
+                <div class="smallcaps">Batch Summary</div>
+                <b>{sdk_count} Puzzles</b> · Numbered #{sdk_start_num} to #{sdk_start_num + sdk_count - 1}<br>
+                <span style="color:#56675f; font-size:0.8rem;">
+                    Title: <i>{sdk_title_template.replace('{num}', str(sdk_start_num)).replace('{diff}', DIFFICULTY_LABELS[selected_difficulty])}</i> · 100% Unique Solutions Guaranteed
+                </span>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+
+        with sdk_tab_style:
+            st.markdown(
+                '<div class="panel-step">Visual Aesthetics & Presets</div><div class="section-title">🎨 Theme & Line Appearance</div>',
+                unsafe_allow_html=True,
+            )
+
+            selected_sdk_preset = st.selectbox(
+                "Audience Preset",
+                list(SUDOKU_PRESETS.keys()),
+                index=list(SUDOKU_PRESETS.keys()).index(st.session_state["sudoku_preset"])
+                if st.session_state["sudoku_preset"] in SUDOKU_PRESETS
+                else 0,
+                key="sdk_preset_picker",
+                help="1-click preset that configures line weights, font proportions, and colors.",
+            )
+
+            if selected_sdk_preset != st.session_state.get("last_sudoku_preset"):
+                st.session_state["last_sudoku_preset"] = selected_sdk_preset
+                st.session_state["sudoku_preset"] = selected_sdk_preset
+                if selected_sdk_preset in SUDOKU_PRESETS and selected_sdk_preset != "⚙️ Custom":
+                    s_data = SUDOKU_PRESETS[selected_sdk_preset]
+                    st.session_state["s_cell_style"] = s_data["cell_style"]
+                    st.session_state["s_outer_line_width"] = s_data["outer_line_width"]
+                    st.session_state["s_block_line_width"] = s_data["block_line_width"]
+                    st.session_state["s_inner_line_width"] = s_data["inner_line_width"]
+                    st.session_state["s_grid_color"] = s_data["grid_color"]
+                    st.session_state["s_shading_mode"] = s_data["shading_mode"]
+                    st.session_state["s_shading_color"] = s_data["shading_color"]
+                    st.session_state["s_font_scale"] = s_data["font_scale"]
+                    st.session_state["s_clue_font"] = s_data["clue_font"]
+                    st.session_state["s_clue_color"] = s_data["clue_color"]
+                    st.session_state["s_solution_color"] = s_data["solution_color"]
+                    st.session_state["s_solution_mode"] = s_data["solution_mode"]
+
+            st.markdown(
+                f'<div class="theme-badge">{SUDOKU_PRESETS[selected_sdk_preset]["description"]}</div>',
+                unsafe_allow_html=True,
+            )
+
+            with st.expander("Grid Lines & Borders", expanded=True):
+                s_style_map = {
+                    "grid": "Classic Continuous Grid",
+                    "rounded_boxes": "Rounded Cell Boxes (Kids / Modern)",
+                    "boxes": "Individual Cell Cards",
+                }
+                inv_s_style = {v: k for k, v in s_style_map.items()}
+                cur_cs = st.session_state.get("s_cell_style", "grid")
+                picked_cs_label = st.selectbox(
+                    "Cell Border Style",
+                    list(s_style_map.values()),
+                    index=list(s_style_map.values()).index(s_style_map.get(cur_cs, "Classic Continuous Grid")),
+                    key="sdk_cell_style_sel",
+                )
+                st.session_state["s_cell_style"] = inv_s_style[picked_cs_label]
+
+                c_lw1, c_lw2, c_lw3 = st.columns(3, gap="small")
+                with c_lw1:
+                    st.session_state["s_outer_line_width"] = st.slider(
+                        "Outer Border (mm)",
+                        min_value=0.5,
+                        max_value=3.0,
+                        value=float(st.session_state.get("s_outer_line_width", 1.4)),
+                        step=0.1,
+                        key="sdk_outer_lw_slider",
+                    )
+                with c_lw2:
+                    st.session_state["s_block_line_width"] = st.slider(
+                        "Block Lines (mm)",
+                        min_value=0.4,
+                        max_value=2.5,
+                        value=float(st.session_state.get("s_block_line_width", 1.0)),
+                        step=0.1,
+                        key="sdk_block_lw_slider",
+                        help="Thick lines separating 3×3 (or 2×2 / 2×3) regions.",
+                    )
+                with c_lw3:
+                    st.session_state["s_inner_line_width"] = st.slider(
+                        "Cell Lines (mm)",
+                        min_value=0.1,
+                        max_value=1.5,
+                        value=float(st.session_state.get("s_inner_line_width", 0.4)),
+                        step=0.1,
+                        key="sdk_inner_lw_slider",
+                        help="Thin divider lines between individual numbers.",
+                    )
+
+                s_grid_colors = [
+                    "Jet Black (#111815)",
+                    "Pure Black (#000000)",
+                    "Charcoal Slate (#1f2937)",
+                    "Navy Blue (#1e293b)",
+                    "Forest Green (#14382d)",
+                    "Custom Hex",
+                ]
+                cur_gc = st.session_state.get("s_grid_color", "#111815")
+                def_gc_idx = 0
+                if cur_gc == "#000000":
+                    def_gc_idx = 1
+                elif cur_gc == "#1f2937":
+                    def_gc_idx = 2
+                elif cur_gc == "#1e293b":
+                    def_gc_idx = 3
+                elif cur_gc == "#14382d":
+                    def_gc_idx = 4
+                elif cur_gc not in ("#111815", "#000000", "#1f2937", "#1e293b", "#14382d"):
+                    def_gc_idx = 5
+
+                picked_gc_opt = st.selectbox(
+                    "Grid Line Color", s_grid_colors, index=def_gc_idx, key="sdk_grid_color_sel"
+                )
+                if picked_gc_opt == "Jet Black (#111815)":
+                    st.session_state["s_grid_color"] = "#111815"
+                elif picked_gc_opt == "Pure Black (#000000)":
+                    st.session_state["s_grid_color"] = "#000000"
+                elif picked_gc_opt == "Charcoal Slate (#1f2937)":
+                    st.session_state["s_grid_color"] = "#1f2937"
+                elif picked_gc_opt == "Navy Blue (#1e293b)":
+                    st.session_state["s_grid_color"] = "#1e293b"
+                elif picked_gc_opt == "Forest Green (#14382d)":
+                    st.session_state["s_grid_color"] = "#14382d"
+                else:
+                    st.session_state["s_grid_color"] = st.text_input(
+                        "Custom Grid Hex", cur_gc, key="sdk_grid_hex_in"
+                    )
+
+            with st.expander("Shading & Highlights", expanded=True):
+                shading_modes = {
+                    "none": "No Shading (Clean White)",
+                    "checkerboard": "Checkerboard (Alternating 3×3 Blocks)",
+                    "diagonal": "Diagonal Highlight (Sudoku X)",
+                    "windows": "Hyper Windows Highlight (Windoku)",
+                }
+                cur_sm = st.session_state.get("s_shading_mode", "none")
+                picked_sm_label = st.selectbox(
+                    "Region Shading Mode",
+                    list(shading_modes.values()),
+                    index=list(shading_modes.keys()).index(cur_sm) if cur_sm in shading_modes else 0,
+                    key="sdk_shading_mode_sel",
+                    help="Highlight blocks, diagonals, or windows to help solvers navigate the board.",
+                )
+                inv_sm = {v: k for k, v in shading_modes.items()}
+                st.session_state["s_shading_mode"] = inv_sm[picked_sm_label]
+
+                shading_colors = [
+                    "Soft Sage Gray (#ecefe9)",
+                    "Warm Cream (#f4f3ec)",
+                    "Cool Ice Slate (#e2e8f0)",
+                    "Subtle Linen (#f5f5f4)",
+                    "Custom Hex",
+                ]
+                cur_sc = st.session_state.get("s_shading_color", "#ecefe9")
+                def_sc_idx = 0
+                if cur_sc == "#f4f3ec":
+                    def_sc_idx = 1
+                elif cur_sc == "#e2e8f0":
+                    def_sc_idx = 2
+                elif cur_sc == "#f5f5f4":
+                    def_sc_idx = 3
+                elif cur_sc not in ("#ecefe9", "#f4f3ec", "#e2e8f0", "#f5f5f4"):
+                    def_sc_idx = 4
+
+                picked_sc_opt = st.selectbox(
+                    "Shading Tone", shading_colors, index=def_sc_idx, key="sdk_shading_color_sel"
+                )
+                if picked_sc_opt == "Soft Sage Gray (#ecefe9)":
+                    st.session_state["s_shading_color"] = "#ecefe9"
+                elif picked_sc_opt == "Warm Cream (#f4f3ec)":
+                    st.session_state["s_shading_color"] = "#f4f3ec"
+                elif picked_sc_opt == "Cool Ice Slate (#e2e8f0)":
+                    st.session_state["s_shading_color"] = "#e2e8f0"
+                elif picked_sc_opt == "Subtle Linen (#f5f5f4)":
+                    st.session_state["s_shading_color"] = "#f5f5f4"
+                else:
+                    st.session_state["s_shading_color"] = st.text_input(
+                        "Custom Shading Hex", cur_sc, key="sdk_shading_hex_in"
+                    )
+
+            with st.expander("Typography & Solution Display", expanded=True):
+                st.session_state["s_font_scale"] = st.slider(
+                    "Digit Size (% of cell)",
+                    min_value=45,
+                    max_value=85,
+                    value=int(st.session_state.get("s_font_scale", 64)),
+                    step=2,
+                    key="sdk_font_scale_slider",
+                    help="60-64% = Standard balanced, 76-82% = Senior giant print.",
+                )
+
+                s_fonts = ["DejaVu Sans Bold", "DejaVu Sans", "DejaVu Serif Bold", "DejaVu Serif", "DejaVu Sans Mono"]
+                cur_sf = st.session_state.get("s_clue_font", "DejaVu Sans Bold")
+                sf_idx = s_fonts.index(cur_sf) if cur_sf in s_fonts else 0
+                st.session_state["s_clue_font"] = st.selectbox(
+                    "Number Font", s_fonts, index=sf_idx, key="sdk_font_sel"
+                )
+
+                c_cl1, c_cl2 = st.columns(2, gap="small")
+                with c_cl1:
+                    sol_color_opts = [
+                        "Royal Blue (#1d4ed8)",
+                        "Emerald Green (#047857)",
+                        "Terracotta Red (#b91c1c)",
+                        "Slate Gray (#475569)",
+                        "Jet Black (#111815)",
+                    ]
+                    cur_sol_c = st.session_state.get("s_solution_color", "#1d4ed8")
+                    sol_c_idx = 0
+                    if cur_sol_c == "#047857":
+                        sol_c_idx = 1
+                    elif cur_sol_c == "#b91c1c":
+                        sol_c_idx = 2
+                    elif cur_sol_c == "#475569":
+                        sol_c_idx = 3
+                    elif cur_sol_c == "#111815":
+                        sol_c_idx = 4
+
+                    picked_sol_c = st.selectbox(
+                        "Solution Color", sol_color_opts, index=sol_c_idx, key="sdk_sol_c_sel"
+                    )
+                    st.session_state["s_solution_color"] = picked_sol_c.split("(")[1].replace(")", "")
+
+                with c_cl2:
+                    sol_mode_map = {"color": "Distinct Color", "circled": "Circled Digits", "plain": "Uniform Black"}
+                    cur_sm_mode = st.session_state.get("s_solution_mode", "color")
+                    picked_sm_label = st.selectbox(
+                        "Solution Marking",
+                        list(sol_mode_map.values()),
+                        index=list(sol_mode_map.keys()).index(cur_sm_mode) if cur_sm_mode in sol_mode_map else 0,
+                        key="sdk_sol_mode_sel",
+                    )
+                    inv_sm_mode = {v: k for k, v in sol_mode_map.items()}
+                    st.session_state["s_solution_mode"] = inv_sm_mode[picked_sm_label]
+
+            with st.expander("KDP Book & Solutions Layout", expanded=False):
+                sdk_trim_choice = st.selectbox(
+                    "KDP Book Trim Size",
+                    list(TRIM_SIZES.keys()),
+                    index=0,
+                    key="sdk_trim_sel",
+                    help="Standard 8.5x11 inch activity book or 6x9 pocket puzzle book.",
+                )
+                sdk_solutions_per_page = st.selectbox(
+                    "Solutions Per Page",
+                    [1, 2, 4, 6, 9],
+                    index=3,
+                    key="sdk_sol_per_page_sel",
+                    help="4, 6, or 9 per page saves book page count in KDP solutions section.",
+                )
+                sdk_include_instructions = st.toggle(
+                    "Include game instructions on puzzle pages", value=True, key="sdk_inst_tog"
+                )
+                sdk_embed_header_in_img = st.toggle(
+                    "Embed title/badge inside raster image",
+                    value=False,
+                    key="sdk_header_in_img_tog",
+                    help="Keep off for Canva Bulk (Canva provides text boxes). Turn on for standalone PNG printing.",
+                )
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Active Sudoku Style Object
+    active_sudoku_style = SimpleNamespace(
+        cell_style=st.session_state["s_cell_style"],
+        outer_line_width=st.session_state["s_outer_line_width"],
+        block_line_width=st.session_state["s_block_line_width"],
+        inner_line_width=st.session_state["s_inner_line_width"],
+        grid_color=st.session_state["s_grid_color"],
+        shading_mode=st.session_state["s_shading_mode"],
+        shading_color=st.session_state["s_shading_color"],
+        font_scale=st.session_state["s_font_scale"],
+        clue_font=st.session_state["s_clue_font"],
+        clue_color=st.session_state["s_clue_color"],
+        solution_color=st.session_state["s_solution_color"],
+        solution_mode=st.session_state["s_solution_mode"],
+    )
+
+    with sdk_preview:
+        # Generate batch of Sudoku puzzles
+        sudoku_puzzles = get_sudoku_batch(
+            selected_sudoku_type.value,
+            selected_difficulty.value,
+            sdk_count,
+            sdk_start_num,
+            sdk_seed,
+            symmetric_clues,
+            wordoku_word_val,
+            custom_clues_val,
+            sdk_title_template,
+        )
+
+        # Clear old export buffers on config change
+        sdk_hash = hash(
+            f"{selected_sudoku_type.value}_{selected_difficulty.value}_{sdk_count}_{sdk_start_num}_{sdk_seed}_"
+            f"{symmetric_clues}_{wordoku_word_val}_{custom_clues_val}_{sdk_title_template}_"
+            f"{active_sudoku_style.cell_style}_{active_sudoku_style.outer_line_width}_{active_sudoku_style.block_line_width}_"
+            f"{active_sudoku_style.inner_line_width}_{active_sudoku_style.grid_color}_{active_sudoku_style.shading_mode}_"
+            f"{active_sudoku_style.font_scale}_{active_sudoku_style.clue_font}_{active_sudoku_style.solution_color}"
+        )
+        if st.session_state.get("last_sudoku_hash") != sdk_hash:
+            st.session_state["last_sudoku_hash"] = sdk_hash
+            for k in ["sdk_canva_bytes", "sdk_sol_bytes", "sdk_zip_bytes", "sdk_pdf_bytes"]:
                 st.session_state.pop(k, None)
 
-        if puzzles:
+        if sudoku_puzzles:
             # Metrics strip
-            c1, c2, c3, c4, c5 = st.columns(5, gap="small")
-            c1.metric("Pages", len(puzzles))
-            c2.metric("Language", f"{lang_cfg['flag']} {selected_language.split(' ')[0]}")
-            c3.metric("Grid Size", f"{puzzles[0].rows} × {puzzles[0].cols}")
-            line_desc = "No Lines" if current_style.grid_line_width == 0 or current_style.cell_style == "none" else f"{current_style.cell_style.replace('_', ' ').title()} ({current_style.grid_line_width}mm)"
-            c4.metric("Border", line_desc)
-            c5.metric("Font Scale", f"{int(current_style.font_scale * 100)}%")
+            sm1, sm2, sm3, sm4, sm5 = st.columns(5, gap="small")
+            sm1.metric("Puzzles", len(sudoku_puzzles))
+            sm2.metric("Type", TYPE_LABELS[selected_sudoku_type].split(" ")[0])
+            sm3.metric("Difficulty", f"{DIFFICULTY_LABELS[selected_difficulty]} {stars}")
+            sm4.metric("Grid Size", f"{dim_size} × {dim_size}")
+            sm5.metric("Clues / Board", f"{sudoku_puzzles[0].clues_count}")
 
-            preview_col, export_col = st.columns([1.55, .75], gap="small")
-            with preview_col:
-                top_p1, top_p2 = st.columns([1.4, 1.0], gap="small")
-                with top_p1:
-                    selected = st.selectbox(
-                        "Preview page",
-                        range(1, len(puzzles) + 1),
-                        format_func=lambda x: f"Page {x}: {puzzles[x-1].theme}",
+            sdk_prev_col, sdk_exp_col = st.columns([1.55, 0.75], gap="small")
+
+            with sdk_prev_col:
+                sp_nav1, sp_nav2 = st.columns([1.2, 1.2], gap="small")
+                with sp_nav2:
+                    sdk_view_mode = st.radio(
+                        "Sudoku View Mode",
+                        ["🔲 Single Puzzle", "🎯 Single Solution", "📑 Solution Page (Book)"],
+                        horizontal=True,
                         label_visibility="collapsed",
+                        key="sdk_view_mode_rad",
                     )
-                with top_p2:
-                    view_mode = st.radio("View Mode", ["🔲 Puzzle", "🎯 Solution"], horizontal=True, label_visibility="collapsed")
 
-                st.image(
-                    render_png(
-                        puzzles[selected - 1],
-                        bank_columns,
-                        False,
-                        solution=(view_mode == "🎯 Solution"),
-                        compact=True,
-                        style=current_style,
-                    ),
-                    use_container_width=True,
-                )
-                if show_bank:
-                    render_word_bank(puzzles[selected - 1].words, bank_columns, title=lang_cfg.get("word_bank_title", "Word bank"))
-                if puzzles[selected - 1].skipped:
-                    st.warning("Some words could not be placed: " + ", ".join(puzzles[selected - 1].skipped))
+                if sdk_view_mode == "📑 Solution Page (Book)":
+                    total_sdk_sol_pages = max(1, math.ceil(len(sudoku_puzzles) / sdk_solutions_per_page))
+                    with sp_nav1:
+                        sdk_sol_page_idx = st.selectbox(
+                            "Solution Page",
+                            range(1, total_sdk_sol_pages + 1),
+                            format_func=lambda x: f"Solution Page {x} of {total_sdk_sol_pages} (Puzzles {(x-1)*sdk_solutions_per_page + 1}–{min(len(sudoku_puzzles), x*sdk_solutions_per_page)})",
+                            label_visibility="collapsed",
+                            key="sdk_sol_page_sel",
+                        )
 
-            with export_col:
-                st.markdown('<div class="section-title">Export Canva Bundle</div>', unsafe_allow_html=True)
-                if include_solution_in_bulk:
-                    st.caption("Solutions: included in Canva bulk")
+                    start_i = (sdk_sol_page_idx - 1) * sdk_solutions_per_page
+                    end_i = start_i + sdk_solutions_per_page
+                    sol_slice = sudoku_puzzles[start_i:end_i]
+                    page_img = render_sudoku_solution_page_image(
+                        sol_slice,
+                        active_sudoku_style,
+                        sdk_solutions_per_page,
+                        sdk_sol_page_idx,
+                        total_sdk_sol_pages,
+                        dpi=160,
+                    )
+                    st.image(page_img, use_container_width=True)
+                    st.caption(
+                        f"📑 Book Solution Page Preview: showing {len(sol_slice)} of {sdk_solutions_per_page} solutions per page (KDP layout)."
+                    )
                 else:
-                    st.caption(f"Solutions: {solutions_per_page} per page (separate workbook)")
-                
-                if st.button("Generate Export Bundle", type="primary", use_container_width=True):
-                    progress_bar = st.progress(0, text="Starting generation...")
-                    out_dir = tempfile.mkdtemp(prefix="word_search_studio_")
-                    canva_path, solutions_path, zip_path = build_workbooks(
-                        puzzles,
-                        out_dir,
-                        show_bank,
-                        bank_columns,
-                        solutions_per_page,
-                        include_solution_in_bulk=include_solution_in_bulk,
-                        progress_bar=progress_bar,
-                        style=current_style,
-                    )
-                    
-                    if progress_bar:
-                        progress_bar.progress(100, text="Export bundle ready!")
-                    
-                    st.session_state["canva_bytes"] = Path(canva_path).read_bytes()
-                    st.session_state["solutions_bytes"] = (
-                        Path(solutions_path).read_bytes() if solutions_path else None
-                    )
-                    st.session_state["zip_bytes"] = Path(zip_path).read_bytes()
-                    st.session_state["solution_in_bulk"] = include_solution_in_bulk
-                    st.success("Export ready with custom grid styles!")
+                    with sp_nav1:
+                        sdk_selected_idx = st.selectbox(
+                            "Preview puzzle",
+                            range(1, len(sudoku_puzzles) + 1),
+                            format_func=lambda x: f"Page {x}: {sudoku_puzzles[x-1].title} ({sudoku_puzzles[x-1].difficulty_label})",
+                            label_visibility="collapsed",
+                            key="sdk_prev_puz_sel",
+                        )
 
-                if "canva_bytes" in st.session_state:
-                    st.download_button("Canva Excel", st.session_state["canva_bytes"], "word_search_canva_bulk.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-                    if st.session_state.get("solutions_bytes"):
-                        st.download_button("Solutions Excel", st.session_state["solutions_bytes"], "word_search_solutions.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-                    st.download_button("Canva ZIP (Images + Workbooks)", st.session_state["zip_bytes"], "word_search_canva_export.zip", "application/zip", use_container_width=True)
+                    active_p = sudoku_puzzles[sdk_selected_idx - 1]
+                    sdk_img = render_sudoku_image(
+                        active_p,
+                        style=active_sudoku_style,
+                        cell_mm=12.0,
+                        dpi=160,
+                        solution=(sdk_view_mode == "🎯 Single Solution"),
+                        include_header=sdk_embed_header_in_img,
+                    )
+
+                    st.image(sdk_img, use_container_width=True)
+
+                    if active_p.wordoku_word:
+                        st.markdown(
+                            f"""
+                        <div style="background:#eaf2ed; border:1px solid #cce3d4; border-radius:8px; padding:6px 12px; margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:700; color:#184534; font-size:0.82rem;">🔤 Wordoku Anagram:</span>
+                            <span style="font-weight:800; color:#184534; letter-spacing:0.18em; font-size:0.95rem;">{active_p.wordoku_word}</span>
+                        </div>
+                        """,
+                            unsafe_allow_html=True,
+                        )
+
+                    st.markdown(
+                        f"""
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; color:#5c6d66; font-size:0.78rem;">
+                        <span>✓ 100% Unique Solution Verified</span>
+                        <span>{active_p.clues_count} Initial Clues · {dim_size*dim_size - active_p.clues_count} Empty Cells</span>
+                    </div>
+                    """,
+                        unsafe_allow_html=True,
+                    )
+
+            with sdk_exp_col:
+                st.markdown('<div class="section-title">Export Sudoku Bundle</div>', unsafe_allow_html=True)
+                st.caption(
+                    f"Book Trim: {sdk_trim_choice.split(' ')[0]} · {sdk_solutions_per_page} solutions/page · 300 DPI print-ready"
+                )
+
+                if st.button("Generate Sudoku Bundle", type="primary", use_container_width=True, key="sdk_gen_btn"):
+                    sdk_bar = st.progress(0, text="Generating Sudoku export bundle...")
+                    out_dir_sdk = tempfile.mkdtemp(prefix="sudoku_studio_")
+
+                    canva_p, sol_p, zip_p, pdf_bytes = build_sudoku_workbooks(
+                        sudoku_puzzles,
+                        out_dir_sdk,
+                        solutions_per_page=sdk_solutions_per_page,
+                        style=active_sudoku_style,
+                        trim_choice=sdk_trim_choice,
+                        include_instructions=sdk_include_instructions,
+                        progress_bar=sdk_bar,
+                    )
+
+                    st.session_state["sdk_canva_bytes"] = Path(canva_p).read_bytes()
+                    st.session_state["sdk_sol_bytes"] = Path(sol_p).read_bytes() if sol_p else None
+                    st.session_state["sdk_zip_bytes"] = Path(zip_p).read_bytes()
+                    st.session_state["sdk_pdf_bytes"] = pdf_bytes
+
+                    st.success("Sudoku export bundle ready!")
+
+                if "sdk_canva_bytes" in st.session_state:
+                    st.download_button(
+                        "📦 Canva Bulk Excel",
+                        st.session_state["sdk_canva_bytes"],
+                        "sudoku_canva_bulk.xlsx",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                        key="sdk_down_canva",
+                    )
+                    if st.session_state.get("sdk_sol_bytes"):
+                        st.download_button(
+                            "📑 Solutions Excel",
+                            st.session_state["sdk_sol_bytes"],
+                            "sudoku_solutions.xlsx",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            key="sdk_down_sol",
+                        )
+                    if st.session_state.get("sdk_pdf_bytes"):
+                        st.download_button(
+                            "📚 KDP Interior PDF Book",
+                            st.session_state["sdk_pdf_bytes"],
+                            "sudoku_kdp_interior.pdf",
+                            "application/pdf",
+                            use_container_width=True,
+                            key="sdk_down_pdf",
+                        )
+                    st.download_button(
+                        "🗂️ Complete Bundle (ZIP)",
+                        st.session_state["sdk_zip_bytes"],
+                        "sudoku_complete_bundle.zip",
+                        "application/zip",
+                        use_container_width=True,
+                        key="sdk_down_zip",
+                    )
 
                 st.markdown("<div style='height:.35rem'></div>", unsafe_allow_html=True)
                 render_square_ad()
-        else:
-            st.info("Add at least one valid word of three or more letters.")
-    else:
-        st.info("Import a CSV or paste words to begin.")

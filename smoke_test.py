@@ -195,5 +195,85 @@ assert clean_word_for_language("città", "Italian") == "CITTA"
 assert clean_word_for_language("españa", "Spanish", "Strip All Accents (A-Z)") == "ESPANA"
 print("ok clean_word_for_language passed all language scenarios")
 
+# 6. Sudoku Engine & Generator Tests
+from engine.sudoku import (
+    SudokuConfig,
+    SudokuType,
+    SudokuDifficulty,
+    generate_sudoku_puzzle,
+    clean_wordoku_letters,
+)
+from core.sudoku_raster import render_sudoku_image, render_sudoku_solution_image, SUDOKU_PRESETS
+from core.sudoku_pdf import build_sudoku_pdf
+from core.sudoku_export import build_sudoku_workbooks
+
+# 6a. Classic 9x9 Sudoku
+cfg_s9 = SudokuConfig(puzzle_type=SudokuType.CLASSIC_9X9, difficulty=SudokuDifficulty.MEDIUM, seed=10)
+p_s9 = generate_sudoku_puzzle(1, cfg_s9)
+assert p_s9.size == 9 and p_s9.box_rows == 3 and p_s9.box_cols == 3
+assert len(p_s9.clues_grid) == 9 and len(p_s9.solution_grid) == 9
+assert 20 <= p_s9.clues_count <= 40
+print(f"ok Sudoku Classic 9x9 generated with {p_s9.clues_count} clues")
+
+# 6b. Kids Mini 4x4 Sudoku
+cfg_s4 = SudokuConfig(puzzle_type=SudokuType.MINI_4X4, difficulty=SudokuDifficulty.EASY, seed=20)
+p_s4 = generate_sudoku_puzzle(2, cfg_s4)
+assert p_s4.size == 4 and p_s4.box_rows == 2 and p_s4.box_cols == 2
+assert 4 <= p_s4.clues_count <= 10
+print(f"ok Sudoku Mini 4x4 generated with {p_s4.clues_count} clues")
+
+# 6c. Junior 6x6 Sudoku
+cfg_s6 = SudokuConfig(puzzle_type=SudokuType.JUNIOR_6X6, difficulty=SudokuDifficulty.MEDIUM, seed=30)
+p_s6 = generate_sudoku_puzzle(3, cfg_s6)
+assert p_s6.size == 6 and p_s6.box_rows == 2 and p_s6.box_cols == 3
+assert 10 <= p_s6.clues_count <= 18
+print(f"ok Sudoku Junior 6x6 generated with {p_s6.clues_count} clues")
+
+# 6d. Wordoku 9x9 (Letter Sudoku)
+letters = clean_wordoku_letters("CHEMISTRY")
+assert len(letters) == 9 and len(set(letters)) == 9
+cfg_sw = SudokuConfig(puzzle_type=SudokuType.WORDOKU_9X9, wordoku_word="CHEMISTRY", seed=40)
+p_sw = generate_sudoku_puzzle(4, cfg_sw)
+assert p_sw.wordoku_word == "CHEMISTRY"
+assert all(any(c in letters for c in row if c) for row in p_sw.clues_grid)
+print("ok Wordoku generated with keyword CHEMISTRY and 9 unique letters")
+
+# 6e. Sudoku X and Windoku
+cfg_sx = SudokuConfig(puzzle_type=SudokuType.SUDOKU_X, seed=50)
+p_sx = generate_sudoku_puzzle(5, cfg_sx)
+assert p_sx.is_x is True
+print("ok Sudoku X generated with diagonal constraints")
+
+cfg_win = SudokuConfig(puzzle_type=SudokuType.WINDOKU, seed=60)
+p_win = generate_sudoku_puzzle(6, cfg_win)
+assert p_win.is_windoku is True
+print("ok Windoku generated with hyper-window constraints")
+
+# 6f. Raster rendering tests
+style_s_classic = SimpleNamespace(**SUDOKU_PRESETS["👔 Adult Classic"])
+img_s = render_sudoku_image(p_s9, style_s_classic, cell_mm=10.0, dpi=150)
+sol_s = render_sudoku_solution_image(p_s9, style_s_classic, cell_mm=10.0, dpi=150)
+assert img_s.size == sol_s.size and img_s.size[0] > 0
+print("ok Sudoku raster rendering test passed")
+
+# 6g. PDF Interior Book generation test
+pdf_bytes = build_sudoku_pdf([p_s9, p_s4], style_s_classic, solutions_per_page=2)
+assert len(pdf_bytes) > 5000
+print("ok Sudoku KDP PDF book generator test passed")
+
+# 7. Composite Solution Page Preview Tests
+from core.grid_raster import render_word_search_solution_page_image
+from core.sudoku_raster import render_sudoku_solution_page_image
+
+ws_sol_page = render_word_search_solution_page_image([p_kids, p_rect], style_kids, solutions_per_page=2, page_num=1, total_pages=1, dpi=120)
+assert ws_sol_page.size[0] > 0 and ws_sol_page.size[1] > 0
+print("ok Word Search composite solution page preview test passed")
+
+sdk_sol_page = render_sudoku_solution_page_image([p_s9, p_s4], style_s_classic, solutions_per_page=2, page_num=1, total_pages=1, dpi=120)
+assert sdk_sol_page.size[0] > 0 and sdk_sol_page.size[1] > 0
+print("ok Sudoku composite solution page preview test passed")
+
 print("ALL SMOKE TESTS PASSED SUCCESSFULLY!")
+
+
 

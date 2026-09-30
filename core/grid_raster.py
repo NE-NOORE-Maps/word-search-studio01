@@ -208,3 +208,68 @@ def render_solution_image(puzzle, style, cell_mm: float, dpi: int = 300):
             d.text((cx, cy), ch, font=fnt, fill=col, anchor="mm")
 
     return img
+
+
+def render_word_search_solution_page_image(
+    puzzles_slice: list,
+    style,
+    solutions_per_page: int = 4,
+    page_num: int = 1,
+    total_pages: int = 1,
+    dpi: int = 150,
+) -> Image.Image:
+    """Render a composite solution book page with multiple word search solutions."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    w = int(8.5 * dpi)
+    h = int(11.0 * dpi)
+    img = Image.new("RGB", (w, h), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+
+    title_size = max(16, round(26.0 / 72.0 * dpi))
+    sub_size = max(10, round(13.0 / 72.0 * dpi))
+    lbl_size = max(9, round(12.0 / 72.0 * dpi))
+
+    font_title = ImageFont.truetype(_font_path("DejaVu Sans Bold"), title_size)
+    font_sub = ImageFont.truetype(_font_path("DejaVu Sans"), sub_size)
+    font_lbl = ImageFont.truetype(_font_path("DejaVu Sans Bold"), lbl_size)
+
+    d.text((w / 2, 45), "SOLUTIONS", fill=(20, 35, 30), font=font_title, anchor="mm")
+    d.text((w / 2, 75), f"Answer Keys · Page {page_num} of {total_pages}", fill=(100, 115, 110), font=font_sub, anchor="mm")
+    d.line([(60, 95), (w - 60, 95)], fill=(220, 225, 220), width=2)
+
+    if solutions_per_page == 1:
+        cols, rows = 1, 1
+    elif solutions_per_page == 2:
+        cols, rows = 2, 1
+    elif solutions_per_page in (3, 4):
+        cols, rows = 2, 2
+    else:
+        cols, rows = 2, 3
+
+    margin_x, margin_y = 60, 115
+    cell_w = (w - 2 * margin_x) / cols
+    cell_h = (h - margin_y - 60) / rows
+
+    for idx, p in enumerate(puzzles_slice):
+        if idx >= cols * rows:
+            break
+        col = idx % cols
+        row = idx // cols
+        cx = margin_x + col * cell_w
+        cy = margin_y + row * cell_h
+
+        title_text = getattr(p, "theme", f"Puzzle #{idx + 1}")
+        d.text((cx + cell_w / 2, cy + 16), title_text, fill=(30, 45, 40), font=font_lbl, anchor="mm")
+
+        sol = render_solution_image(p, style, cell_mm=10.0, dpi=dpi)
+        avail_dim = min(cell_w - 40, cell_h - 45)
+        sol_resized = sol.resize((int(avail_dim), int(avail_dim)), Image.Resampling.LANCZOS)
+
+        ox = cx + (cell_w - avail_dim) / 2
+        oy = cy + 28 + (cell_h - 40 - avail_dim) / 2
+        img.paste(sol_resized, (int(ox), int(oy)))
+
+    d.text((w / 2, h - 25), f"Page {page_num}", fill=(120, 120, 120), font=font_sub, anchor="mm")
+    return img
+
