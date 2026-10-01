@@ -77,7 +77,7 @@ GOOGLE_ADSENSE_SLOT = os.getenv("GOOGLE_ADSENSE_SLOT", "")
 
 
 def render_square_ad():
-    """Render a 300x250 AdSense unit or a clean placeholder before setup."""
+    """Render a 300x250 AdSense unit or a sleek compact slot."""
     if GOOGLE_ADSENSE_CLIENT and GOOGLE_ADSENSE_SLOT:
         components.html(
             f"""
@@ -91,7 +91,7 @@ def render_square_ad():
         )
     else:
         st.markdown(
-            """<div class="ad-placeholder"><div class="ad-label">ADVERTISEMENT</div><div class="ad-square">300 × 250<br><span>Add your Google AdSense details after hosting</span></div></div>""",
+            """<div class="ad-placeholder"><div class="ad-label">ADVERTISEMENT SPOT</div><div class="ad-square">Ready for AdSense · <span>Optional Revenue</span></div></div>""",
             unsafe_allow_html=True,
         )
 
@@ -491,81 +491,79 @@ div[data-testid="stMetricLabel"] { font-size: 0.65rem; margin-bottom: 0; font-we
     div[data-testid="stColumn"]:has(.studio-preview-marker),
     div.stColumn:has(.studio-preview-marker) {
         position: sticky !important;
-        top: 10px !important;
+        top: 8px !important;
         align-self: flex-start !important;
-        max-height: calc(100vh - 30px) !important;
-        overflow-y: auto !important;
-        overflow-x: hidden !important;
+        max-height: calc(100vh - 16px) !important;
+        overflow: hidden !important;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
         padding-left: 8px !important;
-        scrollbar-width: thin;
-        scrollbar-color: #c5bead #f1ede3;
     }
 }
 
-/* Custom sleek WebKit scrollbars */
+/* Custom sleek WebKit scrollbars for Left Controls only */
 div[data-testid="column"]:has(.studio-controls-marker)::-webkit-scrollbar,
 div[data-testid="stColumn"]:has(.studio-controls-marker)::-webkit-scrollbar,
-div.stColumn:has(.studio-controls-marker)::-webkit-scrollbar,
-div[data-testid="column"]:has(.studio-preview-marker)::-webkit-scrollbar,
-div[data-testid="stColumn"]:has(.studio-preview-marker)::-webkit-scrollbar,
-div.stColumn:has(.studio-preview-marker)::-webkit-scrollbar {
+div.stColumn:has(.studio-controls-marker)::-webkit-scrollbar {
     width: 7px;
 }
 div[data-testid="column"]:has(.studio-controls-marker)::-webkit-scrollbar-track,
 div[data-testid="stColumn"]:has(.studio-controls-marker)::-webkit-scrollbar-track,
-div.stColumn:has(.studio-controls-marker)::-webkit-scrollbar-track,
-div[data-testid="column"]:has(.studio-preview-marker)::-webkit-scrollbar-track,
-div[data-testid="stColumn"]:has(.studio-preview-marker)::-webkit-scrollbar-track,
-div.stColumn:has(.studio-preview-marker)::-webkit-scrollbar-track {
+div.stColumn:has(.studio-controls-marker)::-webkit-scrollbar-track {
     background: #f1ede3;
     border-radius: 4px;
 }
 div[data-testid="column"]:has(.studio-controls-marker)::-webkit-scrollbar-thumb,
 div[data-testid="stColumn"]:has(.studio-controls-marker)::-webkit-scrollbar-thumb,
-div.stColumn:has(.studio-controls-marker)::-webkit-scrollbar-thumb,
-div[data-testid="column"]:has(.studio-preview-marker)::-webkit-scrollbar-thumb,
-div[data-testid="stColumn"]:has(.studio-preview-marker)::-webkit-scrollbar-thumb,
-div.stColumn:has(.studio-preview-marker)::-webkit-scrollbar-thumb {
+div.stColumn:has(.studio-controls-marker)::-webkit-scrollbar-thumb {
     background: #c5bead;
     border-radius: 4px;
 }
 div[data-testid="column"]:has(.studio-controls-marker)::-webkit-scrollbar-thumb:hover,
 div[data-testid="stColumn"]:has(.studio-controls-marker)::-webkit-scrollbar-thumb:hover,
-div.stColumn:has(.studio-controls-marker)::-webkit-scrollbar-thumb:hover,
-div[data-testid="column"]:has(.studio-preview-marker)::-webkit-scrollbar-thumb:hover,
-div[data-testid="stColumn"]:has(.studio-preview-marker)::-webkit-scrollbar-thumb:hover,
-div.stColumn:has(.studio-preview-marker)::-webkit-scrollbar-thumb:hover {
+div.stColumn:has(.studio-controls-marker)::-webkit-scrollbar-thumb:hover {
     background: #9d9685;
 }
 
-/* Preview Image container */
+/* Explicitly disable all scrollbars on the right preview column */
+div[data-testid="column"]:has(.studio-preview-marker)::-webkit-scrollbar,
+div[data-testid="stColumn"]:has(.studio-preview-marker)::-webkit-scrollbar,
+div.stColumn:has(.studio-preview-marker)::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+
+/* Preview Image container: fit comfortably in viewport without overflow */
 [data-testid="stImage"] img {
-    max-height: 60vh;
+    max-height: 48vh !important;
     width: auto !important;
     max-width: 100%;
     object-fit: contain;
-    border-radius: 6px;
+    border-radius: 8px;
     display: block;
     margin: 0 auto;
+    box-shadow: 0 4px 14px rgba(20, 37, 31, 0.08);
 }
 
-/* AdSense placeholder */
+/* Compact Non-obtrusive Ad placeholder */
 .ad-placeholder {
-    width: 300px;
-    height: 250px;
-    border: 1px dashed #c6ccc6;
-    background: #f1f3f0;
-    border-radius: 10px;
+    width: 100%;
+    max-width: 280px;
+    height: 52px;
+    border: 1px dashed #cfd5d0;
+    background: #f4f6f4;
+    border-radius: 8px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     color: #79837d;
-    margin: 0.6rem auto 0;
+    margin: 0.35rem auto 0;
 }
-.ad-label { font-size: 0.58rem; letter-spacing: 0.14em; font-weight: 800; margin-bottom: 0.45rem; }
-.ad-square { text-align: center; font-size: 0.9rem; font-weight: 700; line-height: 1.5; }
-.ad-square span { font-size: 0.68rem; font-weight: 500; }
+.ad-label { font-size: 0.52rem; letter-spacing: 0.14em; font-weight: 800; margin-bottom: 0.15rem; }
+.ad-square { text-align: center; font-size: 0.72rem; font-weight: 700; line-height: 1.2; }
+.ad-square span { font-size: 0.6rem; font-weight: 500; }
 
 .word-bank-title { color: #285b4a; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; margin: 0.4rem 0 0.2rem; }
 .word-bank-item { color: #285b4a; font-size: 0.8rem; line-height: 1.35; padding: 0.08rem 0; font-weight: 600; }
@@ -1004,14 +1002,26 @@ with tab_ws:
                     help="Easy = forward (E, S) only; Medium = forward & diagonals; Hard = all 8 directions with reverse.",
                 )
             with c_d2:
-                seed = st.number_input(
-                    "Seed",
-                    min_value=0,
-                    value=42,
-                    step=1,
-                    key="ws_seed_input",
-                    help="Deterministic seed for reproducible puzzle layouts.",
-                )
+                ws_s1, ws_s2 = st.columns([1.1, 0.9], gap="small")
+                with ws_s1:
+                    if "ws_seed_val" not in st.session_state:
+                        import random
+                        st.session_state["ws_seed_val"] = random.randint(1000, 999999)
+                    seed = st.number_input(
+                        "Seed",
+                        min_value=0,
+                        value=int(st.session_state["ws_seed_val"]),
+                        step=1,
+                        key="ws_seed_input",
+                        help="Deterministic seed for reproducible puzzle layouts.",
+                    )
+                    st.session_state["ws_seed_val"] = seed
+                with ws_s2:
+                    st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+                    if st.button("🎲 Shuffle", key="ws_shuffle_seed_btn", help="Pick a new seed to rearrange words & letters."):
+                        import random
+                        st.session_state["ws_seed_val"] = random.randint(1000, 999999)
+                        st.rerun()
 
             with st.expander(f"📥 Sample CSVs & AI Prompts ({selected_language})", expanded=False):
                 ex1, ex2 = st.columns(2, gap="small")
@@ -1391,13 +1401,27 @@ with tab_ws:
                     if view_mode == "📑 Solution Page (Book)":
                         total_sol_pages = max(1, math.ceil(len(puzzles) / solutions_per_page))
                         with top_p1:
-                            sol_page_idx = st.selectbox(
-                                "Solution Page",
-                                range(1, total_sol_pages + 1),
-                                format_func=lambda x: f"Solution Page {x} of {total_sol_pages} (Puzzles {(x-1)*solutions_per_page + 1}–{min(len(puzzles), x*solutions_per_page)})",
-                                label_visibility="collapsed",
-                                key="ws_sol_page_sel",
-                            )
+                            if "ws_curr_sol_page" not in st.session_state or st.session_state["ws_curr_sol_page"] > total_sol_pages:
+                                st.session_state["ws_curr_sol_page"] = 1
+                            c_wsp_p, c_wsp_s, c_wsp_n = st.columns([0.18, 0.64, 0.18], gap="small")
+                            with c_wsp_p:
+                                if st.button("◀", key="ws_sol_prev_btn", disabled=(st.session_state["ws_curr_sol_page"] <= 1), help="Previous Solution Page"):
+                                    st.session_state["ws_curr_sol_page"] = max(1, st.session_state["ws_curr_sol_page"] - 1)
+                                    st.rerun()
+                            with c_wsp_n:
+                                if st.button("▶", key="ws_sol_next_btn", disabled=(st.session_state["ws_curr_sol_page"] >= total_sol_pages), help="Next Solution Page"):
+                                    st.session_state["ws_curr_sol_page"] = min(total_sol_pages, st.session_state["ws_curr_sol_page"] + 1)
+                                    st.rerun()
+                            with c_wsp_s:
+                                sol_page_idx = st.selectbox(
+                                    "Solution Page",
+                                    range(1, total_sol_pages + 1),
+                                    index=st.session_state["ws_curr_sol_page"] - 1,
+                                    format_func=lambda x: f"Sol Page {x}/{total_sol_pages}",
+                                    label_visibility="collapsed",
+                                    key="ws_sol_page_sel",
+                                )
+                                st.session_state["ws_curr_sol_page"] = sol_page_idx
 
                         start_i = (sol_page_idx - 1) * solutions_per_page
                         end_i = start_i + solutions_per_page
@@ -1411,13 +1435,27 @@ with tab_ws:
                         )
                     else:
                         with top_p1:
-                            selected = st.selectbox(
-                                "Preview page",
-                                range(1, len(puzzles) + 1),
-                                format_func=lambda x: f"Page {x}: {puzzles[x-1].theme}",
-                                label_visibility="collapsed",
-                                key="ws_preview_page_sel",
-                            )
+                            if "ws_curr_puz_idx" not in st.session_state or st.session_state["ws_curr_puz_idx"] > len(puzzles):
+                                st.session_state["ws_curr_puz_idx"] = 1
+                            c_wp_p, c_wp_s, c_wp_n = st.columns([0.18, 0.64, 0.18], gap="small")
+                            with c_wp_p:
+                                if st.button("◀", key="ws_puz_prev_btn", disabled=(st.session_state["ws_curr_puz_idx"] <= 1), help="Previous Page"):
+                                    st.session_state["ws_curr_puz_idx"] = max(1, st.session_state["ws_curr_puz_idx"] - 1)
+                                    st.rerun()
+                            with c_wp_n:
+                                if st.button("▶", key="ws_puz_next_btn", disabled=(st.session_state["ws_curr_puz_idx"] >= len(puzzles)), help="Next Page"):
+                                    st.session_state["ws_curr_puz_idx"] = min(len(puzzles), st.session_state["ws_curr_puz_idx"] + 1)
+                                    st.rerun()
+                            with c_wp_s:
+                                selected = st.selectbox(
+                                    "Preview page",
+                                    range(1, len(puzzles) + 1),
+                                    index=st.session_state["ws_curr_puz_idx"] - 1,
+                                    format_func=lambda x: f"Page {x}: {puzzles[x-1].theme}",
+                                    label_visibility="collapsed",
+                                    key="ws_preview_page_sel",
+                                )
+                                st.session_state["ws_curr_puz_idx"] = selected
 
                         st.image(
                             render_png(
@@ -1497,8 +1535,13 @@ with tab_ws:
                             width="stretch",
                             key="ws_down_zip",
                         )
+                        if st.button("🎲 Shuffle Puzzles (New Book)", type="secondary", width="stretch", key="ws_new_book_btn", help="Pick a new random seed to generate fresh puzzles for your next book."):
+                            import random
+                            st.session_state["ws_seed_val"] = random.randint(1000, 999999)
+                            for k in ["canva_bytes", "solutions_bytes", "zip_bytes"]:
+                                st.session_state.pop(k, None)
+                            st.rerun()
 
-                    st.markdown("<div style='height:.35rem'></div>", unsafe_allow_html=True)
                     render_square_ad()
             else:
                 st.info("Add at least one valid word of three or more letters.")
@@ -1540,6 +1583,10 @@ def get_sudoku_batch(
 
 with tab_sudoku:
     # Initialize Sudoku session state
+    if "sdk_seed_val" not in st.session_state:
+        import random
+        st.session_state["sdk_seed_val"] = random.randint(10000, 999999)
+
     if "sudoku_preset" not in st.session_state:
         st.session_state["sudoku_preset"] = "👔 Adult Classic"
     if "last_sudoku_preset" not in st.session_state:
@@ -1706,7 +1753,7 @@ with tab_sudoku:
                 sdk_start_num = st.number_input(
                     "Starting Puzzle #",
                     min_value=1,
-                    value=1,
+                    value=int(st.session_state.get("sdk_start_num_in", 1)),
                     step=1,
                     key="sdk_start_num_in",
                     help="E.g., start at 51 if creating Volume 2 of your puzzle book series.",
@@ -1719,29 +1766,52 @@ with tab_sudoku:
                     help="Template for puzzle titles. Tokens available: {num}, {diff}, {type}",
                 )
 
-            c_sd1, c_sd2 = st.columns([0.75, 1.25], gap="small")
+            c_sd1, c_sd2 = st.columns([1.0, 1.0], gap="small")
             with c_sd1:
                 sdk_seed = st.number_input(
-                    "Random Seed",
+                    "Book Seed (ID)",
                     min_value=0,
-                    value=42,
+                    value=int(st.session_state.get("sdk_seed_val", 42)),
                     step=1,
                     key="sdk_seed_in",
-                    help="Deterministic seed for exact reproducible puzzle layouts.",
+                    help="Unique seed number. Each different seed produces a completely distinct book of puzzles.",
                 )
+                st.session_state["sdk_seed_val"] = sdk_seed
             with c_sd2:
-                st.markdown(
-                    f"""
-                <div class="card" style="margin-top:0; padding:8px 12px;">
-                    <div class="smallcaps">Batch Summary</div>
-                    <b>{sdk_count} Puzzles</b> · #{sdk_start_num} to #{sdk_start_num + sdk_count - 1}<br>
-                    <span style="color:#56675f; font-size:0.75rem;">
-                        Title: <i>{sdk_title_template.replace('{num}', str(sdk_start_num)).replace('{diff}', DIFFICULTY_LABELS[selected_difficulty])}</i> · 100% Unique
-                    </span>
+                b_c1, b_c2 = st.columns(2, gap="small")
+                with b_c1:
+                    st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+                    if st.button("🎲 Shuffle", key="sdk_shuffle_btn", help="Generate a completely new set of unique puzzles."):
+                        import random
+                        st.session_state["sdk_seed_val"] = random.randint(10000, 999999)
+                        st.session_state.pop("last_sudoku_hash", None)
+                        st.rerun()
+                with b_c2:
+                    st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+                    if st.button("📚 Next Vol", key="sdk_next_vol_btn", help="Advance Starting # by batch size and pick a fresh seed for Volume 2, 3..."):
+                        import random
+                        st.session_state["sdk_start_num_in"] = int(sdk_start_num + sdk_count)
+                        st.session_state["sdk_seed_val"] = random.randint(10000, 999999)
+                        st.session_state.pop("last_sudoku_hash", None)
+                        st.rerun()
+
+            st.markdown(
+                f"""
+            <div class="card" style="margin-top:2px; padding:8px 12px; border-left: 3px solid #285b4a;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span class="smallcaps">📚 Book Volume Summary</span>
+                    <span style="font-size:0.75rem; font-weight:700; color:#285b4a;">Seed #{sdk_seed} · Fresh Book</span>
                 </div>
-                """,
-                    unsafe_allow_html=True,
-                )
+                <div style="font-size:0.86rem; font-weight:700; color:#14251f; margin-top:2px;">
+                    {sdk_count} Puzzles (Page #{sdk_start_num} to #{sdk_start_num + sdk_count - 1})
+                </div>
+                <div style="color:#56675f; font-size:0.75rem; margin-top:2px;">
+                    Title: <i>{sdk_title_template.replace('{num}', str(sdk_start_num)).replace('{diff}', DIFFICULTY_LABELS[selected_difficulty])}</i> · 100% Unique Solutions
+                </div>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
 
         with sdk_tab_style:
             st.markdown(
@@ -2093,13 +2163,27 @@ with tab_sudoku:
                 if sdk_view_mode == "📑 Solution Page (Book)":
                     total_sdk_sol_pages = max(1, math.ceil(len(sudoku_puzzles) / sdk_solutions_per_page))
                     with sp_nav1:
-                        sdk_sol_page_idx = st.selectbox(
-                            "Solution Page",
-                            range(1, total_sdk_sol_pages + 1),
-                            format_func=lambda x: f"Solution Page {x} of {total_sdk_sol_pages} (Puzzles {(x-1)*sdk_solutions_per_page + 1}–{min(len(sudoku_puzzles), x*sdk_solutions_per_page)})",
-                            label_visibility="collapsed",
-                            key="sdk_sol_page_sel",
-                        )
+                        if "sdk_curr_sol_page" not in st.session_state or st.session_state["sdk_curr_sol_page"] > total_sdk_sol_pages:
+                            st.session_state["sdk_curr_sol_page"] = 1
+                        c_ssp_p, c_ssp_s, c_ssp_n = st.columns([0.18, 0.64, 0.18], gap="small")
+                        with c_ssp_p:
+                            if st.button("◀", key="sdk_sol_prev_btn", disabled=(st.session_state["sdk_curr_sol_page"] <= 1), help="Previous Solution Page"):
+                                st.session_state["sdk_curr_sol_page"] = max(1, st.session_state["sdk_curr_sol_page"] - 1)
+                                st.rerun()
+                        with c_ssp_n:
+                            if st.button("▶", key="sdk_sol_next_btn", disabled=(st.session_state["sdk_curr_sol_page"] >= total_sdk_sol_pages), help="Next Solution Page"):
+                                st.session_state["sdk_curr_sol_page"] = min(total_sdk_sol_pages, st.session_state["sdk_curr_sol_page"] + 1)
+                                st.rerun()
+                        with c_ssp_s:
+                            sdk_sol_page_idx = st.selectbox(
+                                "Solution Page",
+                                range(1, total_sdk_sol_pages + 1),
+                                index=st.session_state["sdk_curr_sol_page"] - 1,
+                                format_func=lambda x: f"Sol Page {x}/{total_sdk_sol_pages}",
+                                label_visibility="collapsed",
+                                key="sdk_sol_page_sel",
+                            )
+                            st.session_state["sdk_curr_sol_page"] = sdk_sol_page_idx
 
                     start_i = (sdk_sol_page_idx - 1) * sdk_solutions_per_page
                     end_i = start_i + sdk_solutions_per_page
@@ -2118,13 +2202,27 @@ with tab_sudoku:
                     )
                 else:
                     with sp_nav1:
-                        sdk_selected_idx = st.selectbox(
-                            "Preview puzzle",
-                            range(1, len(sudoku_puzzles) + 1),
-                            format_func=lambda x: f"Page {x}: {sudoku_puzzles[x-1].title} ({sudoku_puzzles[x-1].difficulty_label})",
-                            label_visibility="collapsed",
-                            key="sdk_prev_puz_sel",
-                        )
+                        if "sdk_curr_puz_idx" not in st.session_state or st.session_state["sdk_curr_puz_idx"] > len(sudoku_puzzles):
+                            st.session_state["sdk_curr_puz_idx"] = 1
+                        c_sp_p, c_sp_s, c_sp_n = st.columns([0.18, 0.64, 0.18], gap="small")
+                        with c_sp_p:
+                            if st.button("◀", key="sdk_puz_prev_btn", disabled=(st.session_state["sdk_curr_puz_idx"] <= 1), help="Previous Puzzle"):
+                                st.session_state["sdk_curr_puz_idx"] = max(1, st.session_state["sdk_curr_puz_idx"] - 1)
+                                st.rerun()
+                        with c_sp_n:
+                            if st.button("▶", key="sdk_puz_next_btn", disabled=(st.session_state["sdk_curr_puz_idx"] >= len(sudoku_puzzles)), help="Next Puzzle"):
+                                st.session_state["sdk_curr_puz_idx"] = min(len(sudoku_puzzles), st.session_state["sdk_curr_puz_idx"] + 1)
+                                st.rerun()
+                        with c_sp_s:
+                            sdk_selected_idx = st.selectbox(
+                                "Preview puzzle",
+                                range(1, len(sudoku_puzzles) + 1),
+                                index=st.session_state["sdk_curr_puz_idx"] - 1,
+                                format_func=lambda x: f"Page {x}: {sudoku_puzzles[x-1].title} ({sudoku_puzzles[x-1].difficulty_label})",
+                                label_visibility="collapsed",
+                                key="sdk_prev_puz_sel",
+                            )
+                            st.session_state["sdk_curr_puz_idx"] = sdk_selected_idx
 
                     active_p = sudoku_puzzles[sdk_selected_idx - 1]
                     sdk_img = render_sudoku_image(
@@ -2234,5 +2332,13 @@ with tab_sudoku:
                         key="sdk_down_zip",
                     )
 
-                st.markdown("<div style='height:.35rem'></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='margin-top:0.4rem; padding:8px 10px; background:#eaf3ee; border:1px solid #cbe0d3; border-radius:8px; font-size:0.78rem; color:#184534; font-weight:700;'>🎉 Book ready! Want to create the next title?</div>", unsafe_allow_html=True)
+                    if st.button("🎲 Create Next Book (Fresh Puzzles & Next Vol)", type="secondary", width="stretch", key="sdk_next_book_btn", help="Advances starting puzzle # and picks fresh random seeds for completely new puzzles."):
+                        import random
+                        st.session_state["sdk_start_num_in"] = int(sdk_start_num + sdk_count)
+                        st.session_state["sdk_seed_val"] = random.randint(10000, 999999)
+                        for k in ["sdk_canva_bytes", "sdk_sol_bytes", "sdk_zip_bytes", "sdk_pdf_bytes"]:
+                            st.session_state.pop(k, None)
+                        st.rerun()
+
                 render_square_ad()
