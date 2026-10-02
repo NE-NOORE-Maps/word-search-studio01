@@ -1595,6 +1595,61 @@ with tab_sudoku:
         import random
         st.session_state["sdk_seed_val"] = random.randint(10000, 999999)
 
+    if "sdk_seed_in" not in st.session_state:
+        st.session_state["sdk_seed_in"] = int(st.session_state["sdk_seed_val"])
+
+    if "sdk_count_slider" not in st.session_state:
+        st.session_state["sdk_count_slider"] = 12
+
+    if "sdk_exact_custom_count_in" not in st.session_state:
+        st.session_state["sdk_exact_custom_count_in"] = 12
+
+    if "sdk_start_num_in" not in st.session_state:
+        st.session_state["sdk_start_num_in"] = 1
+
+    def _set_sdk_count_preset(val: int):
+        st.session_state["sdk_count_slider"] = val
+        st.session_state["sdk_exact_custom_count_in"] = val
+
+    def _sync_sdk_count_from_slider():
+        val = int(st.session_state.get("sdk_count_slider", 12))
+        st.session_state["sdk_exact_custom_count_in"] = val
+
+    def _sync_sdk_count_from_num():
+        val = int(st.session_state.get("sdk_exact_custom_count_in", 12))
+        st.session_state["sdk_count_slider"] = val
+
+    def _sdk_shuffle_seed():
+        import random
+        new_seed = random.randint(10000, 999999)
+        st.session_state["sdk_seed_in"] = new_seed
+        st.session_state["sdk_seed_val"] = new_seed
+        st.session_state.pop("last_sudoku_hash", None)
+
+    def _sdk_advance_volume():
+        import random
+        start_n = int(st.session_state.get("sdk_start_num_in", 1))
+        cnt = int(st.session_state.get("sdk_exact_custom_count_in", 12))
+        st.session_state["sdk_start_num_in"] = start_n + cnt
+        new_seed = random.randint(10000, 999999)
+        st.session_state["sdk_seed_in"] = new_seed
+        st.session_state["sdk_seed_val"] = new_seed
+        st.session_state.pop("last_sudoku_hash", None)
+
+    def _sdk_create_next_book():
+        import random
+        start_n = int(st.session_state.get("sdk_start_num_in", 1))
+        cnt = int(st.session_state.get("sdk_exact_custom_count_in", 12))
+        st.session_state["sdk_start_num_in"] = start_n + cnt
+        new_seed = random.randint(10000, 999999)
+        st.session_state["sdk_seed_in"] = new_seed
+        st.session_state["sdk_seed_val"] = new_seed
+        st.session_state["sdk_curr_book_page"] = 1
+        st.session_state["sdk_curr_sol_page"] = 1
+        st.session_state["sdk_curr_puz_idx"] = 1
+        for k in ["sdk_canva_bytes", "sdk_sol_bytes", "sdk_zip_bytes", "sdk_pdf_bytes"]:
+            st.session_state.pop(k, None)
+
     if "sudoku_preset" not in st.session_state:
         st.session_state["sudoku_preset"] = "👔 Adult Classic"
     if "last_sudoku_preset" not in st.session_state:
@@ -1736,13 +1791,13 @@ with tab_sudoku:
             # Custom count: slider + direct custom number input (up to 366 a-puzzle-a-day books)
             c_cnt_s1, c_cnt_s2 = st.columns([1.1, 0.9], gap="small")
             with c_cnt_s1:
-                sdk_count_slider_val = st.slider(
+                st.slider(
                     "Puzzles Slider (1–366)",
                     min_value=1,
                     max_value=366,
-                    value=min(366, int(st.session_state.get("sdk_count_slider", 12))),
                     step=1,
                     key="sdk_count_slider",
+                    on_change=_sync_sdk_count_from_slider,
                     help="Quick slider for standard book batches (up to 365/366 a-puzzle-a-day books).",
                 )
             with c_cnt_s2:
@@ -1750,9 +1805,9 @@ with tab_sudoku:
                     "Exact Custom Count",
                     min_value=1,
                     max_value=366,
-                    value=min(366, max(1, sdk_count_slider_val)),
                     step=1,
                     key="sdk_exact_custom_count_in",
+                    on_change=_sync_sdk_count_from_num,
                     help="Type any custom number of puzzles up to 365 / 366 (Full year / Leap year books).",
                 )
 
@@ -1761,17 +1816,20 @@ with tab_sudoku:
             presets = [(12, "12"), (50, "50"), (100, "100"), (200, "200"), (365, "365 🌟")]
             for idx_p, (cnt_val, lbl_val) in enumerate(presets):
                 with q_cols[idx_p]:
-                    if st.button(lbl_val, key=f"sdk_chip_{cnt_val}", width="stretch", help=f"Set puzzle count to {cnt_val}"):
-                        st.session_state["sdk_count_slider"] = cnt_val
-                        st.session_state["sdk_exact_custom_count_in"] = cnt_val
-                        st.rerun()
+                    st.button(
+                        lbl_val,
+                        key=f"sdk_chip_{cnt_val}",
+                        width="stretch",
+                        on_click=_set_sdk_count_preset,
+                        args=(cnt_val,),
+                        help=f"Set puzzle count to {cnt_val}",
+                    )
 
             c_n1, c_n2 = st.columns([0.85, 1.15], gap="small")
             with c_n1:
                 sdk_start_num = st.number_input(
                     "Starting Puzzle #",
                     min_value=1,
-                    value=int(st.session_state.get("sdk_start_num_in", 1)),
                     step=1,
                     key="sdk_start_num_in",
                     help="E.g., start at 51 if creating Volume 2 of your puzzle book series.",
@@ -1789,7 +1847,6 @@ with tab_sudoku:
                 sdk_seed = st.number_input(
                     "Book Seed (ID)",
                     min_value=0,
-                    value=int(st.session_state.get("sdk_seed_val", 42)),
                     step=1,
                     key="sdk_seed_in",
                     help="Unique seed number. Each different seed produces a completely distinct book of puzzles.",
@@ -1799,19 +1856,20 @@ with tab_sudoku:
                 b_c1, b_c2 = st.columns(2, gap="small")
                 with b_c1:
                     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-                    if st.button("🎲 Shuffle", key="sdk_shuffle_btn", help="Generate a completely new set of unique puzzles."):
-                        import random
-                        st.session_state["sdk_seed_val"] = random.randint(10000, 999999)
-                        st.session_state.pop("last_sudoku_hash", None)
-                        st.rerun()
+                    st.button(
+                        "🎲 Shuffle",
+                        key="sdk_shuffle_btn",
+                        on_click=_sdk_shuffle_seed,
+                        help="Generate a completely new set of unique puzzles.",
+                    )
                 with b_c2:
                     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-                    if st.button("📚 Next Vol", key="sdk_next_vol_btn", help="Advance Starting # by batch size and pick a fresh seed for Volume 2, 3..."):
-                        import random
-                        st.session_state["sdk_start_num_in"] = int(sdk_start_num + sdk_count)
-                        st.session_state["sdk_seed_val"] = random.randint(10000, 999999)
-                        st.session_state.pop("last_sudoku_hash", None)
-                        st.rerun()
+                    st.button(
+                        "📚 Next Vol",
+                        key="sdk_next_vol_btn",
+                        on_click=_sdk_advance_volume,
+                        help="Advance Starting # by batch size and pick a fresh seed for Volume 2, 3...",
+                    )
 
             st.markdown(
                 f"""
@@ -2523,15 +2581,13 @@ with tab_sudoku:
                     )
 
                     st.markdown("<div style='margin-top:0.4rem; padding:8px 10px; background:#eaf3ee; border:1px solid #cbe0d3; border-radius:8px; font-size:0.78rem; color:#184534; font-weight:700;'>🎉 Book ready! Want to create the next title?</div>", unsafe_allow_html=True)
-                    if st.button("🎲 Create Next Book (Fresh Puzzles & Next Vol)", type="secondary", width="stretch", key="sdk_next_book_btn", help="Advances starting puzzle # and picks fresh random seeds for completely new puzzles."):
-                        import random
-                        st.session_state["sdk_start_num_in"] = int(sdk_start_num + sdk_count)
-                        st.session_state["sdk_seed_val"] = random.randint(10000, 999999)
-                        st.session_state["sdk_curr_book_page"] = 1
-                        st.session_state["sdk_curr_sol_page"] = 1
-                        st.session_state["sdk_curr_puz_idx"] = 1
-                        for k in ["sdk_canva_bytes", "sdk_sol_bytes", "sdk_zip_bytes", "sdk_pdf_bytes"]:
-                            st.session_state.pop(k, None)
-                        st.rerun()
+                    st.button(
+                        "🎲 Create Next Book (Fresh Puzzles & Next Vol)",
+                        type="secondary",
+                        width="stretch",
+                        key="sdk_next_book_btn",
+                        on_click=_sdk_create_next_book,
+                        help="Advances starting puzzle # and picks fresh random seeds for completely new puzzles.",
+                    )
 
                 render_square_ad()
