@@ -329,7 +329,137 @@ assert os.path.exists(zip_multi)
 assert len(pdf_multi_exp) > 0
 print("ok Sudoku workbook & Canva export with 4 games/page passed")
 
+# 10. Sudoku Date & Calendar Integration Tests
+from core.calendar_builder import (
+    DATE_FORMAT_PRESETS,
+    format_puzzle_date,
+    get_puzzle_date_info,
+    render_mini_month_calendar,
+    CALENDAR_THEMES,
+)
+import datetime
+
+# 10a. Date formatting presets verification
+sample_dt = datetime.date(2026, 9, 27)
+f_27_sep = format_puzzle_date(sample_dt, "27-September")
+assert f_27_sep == "27-September", f"Expected '27-September', got '{f_27_sep}'"
+
+f_27_sep_yr = format_puzzle_date(sample_dt, "27-sept-2026")
+assert f_27_sep_yr == "27-sept-2026", f"Expected '27-sept-2026', got '{f_27_sep_yr}'"
+
+f_us = format_puzzle_date(sample_dt, "9-27-2026")
+assert f_us == "9-27-2026", f"Expected '9-27-2026', got '{f_us}'"
+
+# Test all presets execute without error
+for preset in DATE_FORMAT_PRESETS:
+    formatted = format_puzzle_date(sample_dt, preset)
+    assert len(formatted) > 0
+print("ok All date format presets verified")
+
+# 10b. Date info calculation (daily 365 and monthly progression)
+start_d = datetime.date(2026, 1, 1)
+# Day 1
+d_info_0 = get_puzzle_date_info(0, start_d, "daily", "27-September")
+assert d_info_0["day"] == 1 and d_info_0["month"] == 1 and d_info_0["year"] == 2026
+# Day 365 (Dec 31, 2026)
+d_info_364 = get_puzzle_date_info(364, start_d, "daily", "27-September")
+assert d_info_364["day"] == 31 and d_info_364["month"] == 12 and d_info_364["year"] == 2026
+print("ok 365-day progression calculation verified")
+
+# Monthly progression
+d_info_m5 = get_puzzle_date_info(5, start_d, "monthly", "27-September")
+assert d_info_m5["month"] == 6  # June
+print("ok Monthly progression calculation verified")
+
+# 10c. Mini month calendar image rendering
+for theme_name in CALENDAR_THEMES:
+    cal_img = render_mini_month_calendar(
+        year=2026,
+        month=9,
+        highlight_day=27,
+        theme=theme_name,
+        width=600,
+        height=420,
+    )
+    assert cal_img.size == (600, 420)
+print("ok Mini month calendar card rendering in all themes verified")
+
+# 10d. Multi-game page rendering with date strings and calendar images
+cal_img_test = render_mini_month_calendar(2026, 9, 27, theme="Modern Emerald", width=400, height=280)
+for g_per_page in [1, 2, 4, 6]:
+    d_strs = [f"Day {i+1} - Sep 2{i}" for i in range(g_per_page)]
+    c_imgs = [cal_img_test] * g_per_page
+    puz_page_with_date = render_sudoku_puzzle_page_image(
+        test_puzzles[:g_per_page],
+        style_s_classic,
+        puzzles_per_page=g_per_page,
+        page_num=1,
+        total_pages=2,
+        dpi=120,
+        date_strings=d_strs,
+        calendar_images=c_imgs,
+    )
+    assert puz_page_with_date.size[0] > 0
+    print(f"ok Sudoku page with {g_per_page} game(s)/page + date headers & calendars rendered successfully")
+
+# 10e. PDF generation with date text and mini calendars
+pdf_cal_bytes = build_sudoku_pdf(
+    test_puzzles[:4],
+    style_s_classic,
+    puzzles_per_page=2,
+    solutions_per_page=4,
+    date_strings=["27-September", "28-September", "29-September", "30-September"],
+    calendar_images=[cal_img_test] * 4,
+)
+assert len(pdf_cal_bytes) > 10000
+print("ok Sudoku PDF book with date headers and mini calendars passed")
+
+# 10f. Workbook & Canva export with date text config
+date_cfg_text = {
+    "enabled": True,
+    "mode": "date_text",
+    "start_date": datetime.date(2026, 1, 1),
+    "date_format": "27-September",
+    "progression": "daily",
+    "cal_theme": "Modern Emerald",
+    "monday_first": False,
+}
+out_sdk_date_text = tempfile.mkdtemp(prefix="sdk_date_text_test_")
+canva_dt, sol_dt, zip_dt, pdf_dt = build_sudoku_workbooks(
+    test_puzzles[:4],
+    out_sdk_date_text,
+    puzzles_per_page=2,
+    solutions_per_page=4,
+    date_config=date_cfg_text,
+)
+assert os.path.exists(canva_dt)
+assert os.path.exists(zip_dt)
+print("ok Sudoku workbook & Canva export with date text mode passed")
+
+# 10g. Workbook & Canva export with calendar image mode
+date_cfg_img = {
+    "enabled": True,
+    "mode": "calendar_image",
+    "start_date": datetime.date(2026, 9, 27),
+    "date_format": "27-sept-2026",
+    "progression": "daily",
+    "cal_theme": "Minimalist Slate",
+    "monday_first": True,
+}
+out_sdk_date_img = tempfile.mkdtemp(prefix="sdk_date_img_test_")
+canva_di, sol_di, zip_di, pdf_di = build_sudoku_workbooks(
+    test_puzzles[:4],
+    out_sdk_date_img,
+    puzzles_per_page=2,
+    solutions_per_page=4,
+    date_config=date_cfg_img,
+)
+assert os.path.exists(canva_di)
+assert os.path.exists(zip_di)
+print("ok Sudoku workbook & Canva export with mini calendar image mode passed")
+
 print("ALL SMOKE TESTS PASSED SUCCESSFULLY!")
+
 
 
 

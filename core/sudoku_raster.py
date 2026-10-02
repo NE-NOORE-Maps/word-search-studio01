@@ -145,6 +145,7 @@ def render_sudoku_image(
     dpi: int = 300,
     solution: bool = False,
     include_header: bool = False,
+    date_text: Optional[str] = None,
 ) -> Image.Image:
     """Render a Sudoku puzzle (or its solution) to a PIL Image at specified DPI.
 
@@ -155,6 +156,7 @@ def render_sudoku_image(
         dpi: Target DPI (300 for print, 150-180 for preview)
         solution: If True, renders complete solution with distinct clue vs solved markings
         include_header: If True, draws title and difficulty badge above the grid
+        date_text: Optional formatted date string to display in header
     """
     size = puzzle.size
     box_r = puzzle.box_rows
@@ -200,7 +202,8 @@ def render_sudoku_image(
         sub_font_px = max(8, round(header_h_px * 0.28))
         sub_font = ImageFont.truetype(_font_path("DejaVu Sans"), sub_font_px)
 
-        d.text((10, header_h_px * 0.35), puzzle.title, fill=clue_color, font=title_font, anchor="lm")
+        title_display = f"{puzzle.title} · {date_text}" if date_text else puzzle.title
+        d.text((10, header_h_px * 0.35), title_display, fill=clue_color, font=title_font, anchor="lm")
         diff_text = f"{puzzle.difficulty_label}  {puzzle.difficulty_stars}"
         d.text((grid_w - 10, header_h_px * 0.35), diff_text, fill=(75, 85, 99), font=sub_font, anchor="rm")
         d.line([(0, header_h_px - 2), (grid_w, header_h_px - 2)], fill=(220, 225, 222), width=1)
@@ -451,8 +454,10 @@ def render_sudoku_puzzle_page_image(
     total_pages: int = 1,
     dpi: int = 150,
     include_instructions: bool = True,
+    date_strings: Optional[list[str]] = None,
+    calendar_images: Optional[list[Image.Image]] = None,
 ) -> Image.Image:
-    """Render a composite book interior page showing 1, 2, 4, or 6 Sudoku puzzles."""
+    """Render a composite book interior page showing 1, 2, 4, or 6 Sudoku puzzles with optional dates/calendars."""
     w = int(8.5 * dpi)
     h = int(11.0 * dpi)
     img = Image.new("RGB", (w, h), (255, 255, 255))
@@ -470,13 +475,41 @@ def render_sudoku_puzzle_page_image(
 
     if puzzles_per_page == 1 and puzzles_slice:
         p = puzzles_slice[0]
-        d.text((w / 2, 50), p.title, fill=(20, 35, 30), font=font_title, anchor="mm")
-        d.text((w / 2, 85), f"Difficulty: {p.difficulty_label}   {p.difficulty_stars}", fill=(90, 105, 98), font=font_sub, anchor="mm")
+        d_txt = date_strings[0] if (date_strings and len(date_strings) > 0 and date_strings[0]) else None
+        cal_img = calendar_images[0] if (calendar_images and len(calendar_images) > 0 and calendar_images[0]) else None
 
-        top_offset = 100
-        if include_instructions:
-            d.text((w / 2, 115), "Fill in the grid so every row, column, and block contains each number exactly once.", fill=(110, 125, 118), font=font_inst, anchor="mm")
-            top_offset = 135
+        if cal_img:
+            cal_w = int(w * 0.32)
+            cal_h = int(cal_w * 0.80)
+            cal_res = cal_img.resize((cal_w, cal_h), Image.Resampling.LANCZOS)
+            cal_x = w - 60 - cal_w
+            cal_y = 35
+            img.paste(cal_res, (cal_x, cal_y))
+
+            header_x = 60
+            if d_txt:
+                d.text((header_x, 50), d_txt, fill=(20, 35, 30), font=font_title)
+                d.text((header_x, 85), f"{p.title}  ·  {p.difficulty_label} {p.difficulty_stars}", fill=(90, 105, 98), font=font_sub)
+            else:
+                d.text((header_x, 50), p.title, fill=(20, 35, 30), font=font_title)
+                d.text((header_x, 85), f"Difficulty: {p.difficulty_label}   {p.difficulty_stars}", fill=(90, 105, 98), font=font_sub)
+
+            top_offset = 35 + cal_h + 15
+            if include_instructions:
+                d.text((w / 2, top_offset + 12), "Fill in the grid so every row, column, and block contains each number exactly once.", fill=(110, 125, 118), font=font_inst, anchor="mm")
+                top_offset += 28
+        else:
+            if d_txt:
+                d.text((w / 2, 45), d_txt, fill=(20, 35, 30), font=font_title, anchor="mm")
+                d.text((w / 2, 78), f"{p.title}  ·  {p.difficulty_label} {p.difficulty_stars}", fill=(90, 105, 98), font=font_sub, anchor="mm")
+            else:
+                d.text((w / 2, 50), p.title, fill=(20, 35, 30), font=font_title, anchor="mm")
+                d.text((w / 2, 85), f"Difficulty: {p.difficulty_label}   {p.difficulty_stars}", fill=(90, 105, 98), font=font_sub, anchor="mm")
+
+            top_offset = 100
+            if include_instructions:
+                d.text((w / 2, 115), "Fill in the grid so every row, column, and block contains each number exactly once.", fill=(110, 125, 118), font=font_inst, anchor="mm")
+                top_offset = 135
 
         p_img = render_sudoku_image(p, style, cell_mm=12.0, dpi=dpi, solution=False, include_header=False)
         avail = min(w - 120, h - top_offset - 80)
@@ -493,8 +526,19 @@ def render_sudoku_puzzle_page_image(
 
         for idx, p in enumerate(puzzles_slice[:2]):
             cy = margin_y + idx * cell_h
-            lbl = f"{p.title}  ·  {p.difficulty_label} {p.difficulty_stars}"
-            d.text((w / 2, cy + 18), lbl, fill=(20, 35, 30), font=font_lbl, anchor="mm")
+            d_txt = date_strings[idx] if (date_strings and idx < len(date_strings) and date_strings[idx]) else ""
+            cal_img = calendar_images[idx] if (calendar_images and idx < len(calendar_images) and calendar_images[idx]) else None
+
+            if cal_img:
+                cal_w = int(cell_w * 0.22)
+                cal_h = int(cal_w * 0.80)
+                cal_res = cal_img.resize((cal_w, cal_h), Image.Resampling.LANCZOS)
+                img.paste(cal_res, (int(w - margin_x - cal_w), int(cy + 10)))
+                lbl = f"{d_txt} · {p.title} ({p.difficulty_label})" if d_txt else f"{p.title} · {p.difficulty_label} {p.difficulty_stars}"
+                d.text((margin_x + 10, cy + 22), lbl, fill=(20, 35, 30), font=font_lbl)
+            else:
+                lbl = f"{d_txt}  ·  {p.title}  ·  {p.difficulty_label} {p.difficulty_stars}" if d_txt else f"{p.title}  ·  {p.difficulty_label} {p.difficulty_stars}"
+                d.text((w / 2, cy + 18), lbl, fill=(20, 35, 30), font=font_lbl, anchor="mm")
 
             p_img = render_sudoku_image(p, style, cell_mm=10.0, dpi=dpi, solution=False, include_header=False)
             avail = min(cell_w - 40, cell_h - 45)
@@ -515,8 +559,19 @@ def render_sudoku_puzzle_page_image(
             cx = margin_x + col * cell_w
             cy = margin_y + row * cell_h
 
-            lbl = f"{p.title} ({p.difficulty_label})"
-            d.text((cx + cell_w / 2, cy + 15), lbl, fill=(20, 35, 30), font=font_lbl, anchor="mm")
+            d_txt = date_strings[idx] if (date_strings and idx < len(date_strings) and date_strings[idx]) else ""
+            cal_img = calendar_images[idx] if (calendar_images and idx < len(calendar_images) and calendar_images[idx]) else None
+
+            if cal_img:
+                cal_w = int(cell_w * 0.24)
+                cal_h = int(cal_w * 0.80)
+                cal_res = cal_img.resize((cal_w, cal_h), Image.Resampling.LANCZOS)
+                img.paste(cal_res, (int(cx + cell_w - cal_w - 6), int(cy + 4)))
+                lbl = f"{d_txt} #{p.puzzle_id}" if d_txt else f"{p.title} ({p.difficulty_label})"
+                d.text((cx + 10, cy + 16), lbl, fill=(20, 35, 30), font=font_lbl)
+            else:
+                lbl = f"{d_txt}  ·  {p.title} ({p.difficulty_label})" if d_txt else f"{p.title} ({p.difficulty_label})"
+                d.text((cx + cell_w / 2, cy + 15), lbl, fill=(20, 35, 30), font=font_lbl, anchor="mm")
 
             p_img = render_sudoku_image(p, style, cell_mm=10.0, dpi=dpi, solution=False, include_header=False)
             avail = min(cell_w - 28, cell_h - 38)
@@ -537,8 +592,19 @@ def render_sudoku_puzzle_page_image(
             cx = margin_x + col * cell_w
             cy = margin_y + row * cell_h
 
-            lbl = f"{p.title} ({p.difficulty_label})"
-            d.text((cx + cell_w / 2, cy + 12), lbl, fill=(20, 35, 30), font=font_lbl, anchor="mm")
+            d_txt = date_strings[idx] if (date_strings and idx < len(date_strings) and date_strings[idx]) else ""
+            cal_img = calendar_images[idx] if (calendar_images and idx < len(calendar_images) and calendar_images[idx]) else None
+
+            if cal_img:
+                cal_w = int(cell_w * 0.22)
+                cal_h = int(cal_w * 0.80)
+                cal_res = cal_img.resize((cal_w, cal_h), Image.Resampling.LANCZOS)
+                img.paste(cal_res, (int(cx + cell_w - cal_w - 4), int(cy + 4)))
+                lbl = f"{d_txt} #{p.puzzle_id}" if d_txt else f"#{p.puzzle_id} ({p.difficulty_label})"
+                d.text((cx + 6, cy + 13), lbl, fill=(20, 35, 30), font=font_lbl)
+            else:
+                lbl = f"{d_txt} · {p.title}" if d_txt else f"{p.title} ({p.difficulty_label})"
+                d.text((cx + cell_w / 2, cy + 12), lbl, fill=(20, 35, 30), font=font_lbl, anchor="mm")
 
             p_img = render_sudoku_image(p, style, cell_mm=10.0, dpi=dpi, solution=False, include_header=False)
             avail = min(cell_w - 22, cell_h - 30)

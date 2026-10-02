@@ -23,6 +23,7 @@ def build_sudoku_workbooks(
     trim_choice: str = "8.5 x 11 inches (Letter)",
     include_instructions: bool = True,
     include_solution_in_same_excel: bool = True,
+    date_config: Optional[dict] = None,
     progress_bar: Optional[Any] = None,
 ) -> Tuple[str, Optional[str], str, bytes]:
     """Render all 300 DPI Sudoku images, create Canva Excel, Solutions Excel, KDP PDF, and ZIP bundle.
@@ -36,14 +37,48 @@ def build_sudoku_workbooks(
 
     grid_paths: List[str] = []
     sol_paths: List[str] = []
+    cal_paths: List[str] = []
+    cal_imgs: List[Any] = []
+    date_strings: List[str] = []
     total = len(puzzles)
+
+    date_enabled = bool(date_config and date_config.get("enabled"))
+    cal_mode = "text"
+    if date_enabled:
+        from core.calendar_builder import get_puzzle_date_info, render_mini_month_calendar
+        s_date = date_config.get("start_date")
+        if not s_date:
+            import datetime
+            s_date = datetime.date(2026, 1, 1)
+        prog = date_config.get("progression", "daily")
+        f_choice = date_config.get("format_choice", "27-September")
+        cal_mode = date_config.get("mode", "text")
+        theme = date_config.get("calendar_theme", "Modern Emerald")
+        sunday_start = date_config.get("first_day_sunday", True)
+
+        for i in range(total):
+            info = get_puzzle_date_info(i, s_date, progression=prog, format_choice=f_choice)
+            date_strings.append(info["date_str"])
+            if cal_mode == "calendar_image":
+                cal_img = render_mini_month_calendar(
+                    year=info["year"],
+                    month=info["month"],
+                    highlight_day=info["highlight_day"],
+                    theme=theme,
+                    first_day_sunday=sunday_start,
+                )
+                cp = os.path.join(img_dir, f"page_{i+1:03d}_calendar.png")
+                cal_img.save(cp)
+                cal_paths.append(cp)
+                cal_imgs.append(cal_img)
 
     # 1. Render all 300 DPI PNG images
     for i, puzzle in enumerate(puzzles, 1):
         gp = os.path.join(img_dir, f"page_{i:03d}_grid.png")
         sp = os.path.join(img_dir, f"page_{i:03d}_solution.png")
+        d_txt = date_strings[i - 1] if date_enabled else None
 
-        render_sudoku_image(puzzle, style, cell_mm=12.0, dpi=300, solution=False).save(gp)
+        render_sudoku_image(puzzle, style, cell_mm=12.0, dpi=300, solution=False, date_text=d_txt).save(gp)
         render_sudoku_solution_image(puzzle, style, cell_mm=12.0, dpi=300).save(sp)
 
         grid_paths.append(gp)
@@ -57,11 +92,16 @@ def build_sudoku_workbooks(
         progress_bar.progress(50, text="Generating Canva Bulk Create workbook...")
 
     if puzzles_per_page <= 1:
-        text_columns = ["page", "puzzle_num", "title", "difficulty", "clues_count"]
+        text_columns = ["page", "puzzle_num", "title"]
+        if date_enabled:
+            text_columns.append("date")
+        text_columns.extend(["difficulty", "clues_count"])
         if puzzles and puzzles[0].wordoku_word:
             text_columns.append("wordoku_word")
 
         image_columns = ["grid_image"]
+        if date_enabled and cal_mode == "calendar_image":
+            image_columns.append("calendar_image")
         if include_solution_in_same_excel:
             image_columns.append("solution_image")
 
@@ -75,6 +115,10 @@ def build_sudoku_workbooks(
                 "clues_count": puzzle.clues_count,
                 "grid_image": grid_paths[i - 1],
             }
+            if date_enabled:
+                row["date"] = date_strings[i - 1]
+            if date_enabled and cal_mode == "calendar_image":
+                row["calendar_image"] = cal_paths[i - 1]
             if include_solution_in_same_excel:
                 row["solution_image"] = sol_paths[i - 1]
             if puzzle.wordoku_word:
@@ -84,8 +128,15 @@ def build_sudoku_workbooks(
         text_columns = ["page", "puzzle_range"]
         image_columns = []
         for k in range(1, puzzles_per_page + 1):
-            text_columns.extend([f"title_{k}", f"difficulty_{k}", f"clues_{k}"])
+            col_group = [f"title_{k}"]
+            if date_enabled:
+                col_group.append(f"date_{k}")
+            col_group.extend([f"difficulty_{k}", f"clues_{k}"])
+            text_columns.extend(col_group)
+
             image_columns.append(f"grid_image_{k}")
+            if date_enabled and cal_mode == "calendar_image":
+                image_columns.append(f"calendar_image_{k}")
             if include_solution_in_same_excel:
                 image_columns.append(f"solution_image_{k}")
 
@@ -104,16 +155,24 @@ def build_sudoku_workbooks(
                 if c_idx < total:
                     p = puzzles[c_idx]
                     row[f"title_{k}"] = p.title
+                    if date_enabled:
+                        row[f"date_{k}"] = date_strings[c_idx]
                     row[f"difficulty_{k}"] = p.difficulty_label
                     row[f"clues_{k}"] = p.clues_count
                     row[f"grid_image_{k}"] = grid_paths[c_idx]
+                    if date_enabled and cal_mode == "calendar_image":
+                        row[f"calendar_image_{k}"] = cal_paths[c_idx]
                     if include_solution_in_same_excel:
                         row[f"solution_image_{k}"] = sol_paths[c_idx]
                 else:
                     row[f"title_{k}"] = ""
+                    if date_enabled:
+                        row[f"date_{k}"] = ""
                     row[f"difficulty_{k}"] = ""
                     row[f"clues_{k}"] = ""
                     row[f"grid_image_{k}"] = ""
+                    if date_enabled and cal_mode == "calendar_image":
+                        row[f"calendar_image_{k}"] = ""
                     if include_solution_in_same_excel:
                         row[f"solution_image_{k}"] = ""
             rows.append(row)
@@ -166,8 +225,6 @@ def build_sudoku_workbooks(
                 )
         wb.close()
     else:
-        # Add a secondary Solutions worksheet into the same canva_path workbook if user wants both sheets
-        # Or write_bulk_excel already has grid_image and solution_image on the same row!
         pass
 
     # 4. Generate KDP PDF Interior Book
@@ -182,6 +239,8 @@ def build_sudoku_workbooks(
         solutions_per_page=solutions_per_page,
         include_instructions=include_instructions,
         show_solution_divider=True,
+        date_strings=date_strings if date_enabled else None,
+        calendar_images=cal_imgs if (date_enabled and cal_mode == "calendar_image") else None,
     )
     pdf_path = os.path.join(out_dir, "sudoku_kdp_interior.pdf")
     Path(pdf_path).write_bytes(pdf_bytes)
@@ -196,7 +255,7 @@ def build_sudoku_workbooks(
         if solutions_path:
             z.write(solutions_path, os.path.basename(solutions_path))
         z.write(pdf_path, os.path.basename(pdf_path))
-        for p in grid_paths + sol_paths:
+        for p in grid_paths + sol_paths + cal_paths:
             z.write(p, f"images/{os.path.basename(p)}")
 
     if progress_bar:

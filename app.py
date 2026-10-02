@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import datetime
 import io
 import math
 import os
@@ -65,6 +66,12 @@ from core.sudoku_raster import (
 )
 from core.sudoku_pdf import TRIM_SIZES
 from core.sudoku_export import build_sudoku_workbooks
+from core.calendar_builder import (
+    DATE_FORMAT_PRESETS,
+    CALENDAR_THEMES,
+    get_puzzle_date_info,
+    render_mini_month_calendar,
+)
 
 st.set_page_config(
     page_title="KDP Activity Studio · Word Search & Sudoku",
@@ -1726,28 +1733,38 @@ with tab_sudoku:
                 unsafe_allow_html=True,
             )
 
-            # Custom count: slider + direct custom number input for unlimited customization
+            # Custom count: slider + direct custom number input (up to 366 a-puzzle-a-day books)
             c_cnt_s1, c_cnt_s2 = st.columns([1.1, 0.9], gap="small")
             with c_cnt_s1:
                 sdk_count_slider_val = st.slider(
-                    "Puzzles Slider (1–100)",
+                    "Puzzles Slider (1–366)",
                     min_value=1,
-                    max_value=100,
-                    value=12,
+                    max_value=366,
+                    value=min(366, int(st.session_state.get("sdk_count_slider", 12))),
                     step=1,
                     key="sdk_count_slider",
-                    help="Quick slider for standard book batches.",
+                    help="Quick slider for standard book batches (up to 365/366 a-puzzle-a-day books).",
                 )
             with c_cnt_s2:
                 sdk_count = st.number_input(
                     "Exact Custom Count",
                     min_value=1,
-                    max_value=300,
-                    value=sdk_count_slider_val,
+                    max_value=366,
+                    value=min(366, max(1, sdk_count_slider_val)),
                     step=1,
                     key="sdk_exact_custom_count_in",
-                    help="Type any custom number of puzzles up to 300.",
+                    help="Type any custom number of puzzles up to 365 / 366 (Full year / Leap year books).",
                 )
+
+            # Quick Preset Chips
+            q_cols = st.columns(5, gap="small")
+            presets = [(12, "12"), (50, "50"), (100, "100"), (200, "200"), (365, "365 🌟")]
+            for idx_p, (cnt_val, lbl_val) in enumerate(presets):
+                with q_cols[idx_p]:
+                    if st.button(lbl_val, key=f"sdk_chip_{cnt_val}", width="stretch", help=f"Set puzzle count to {cnt_val}"):
+                        st.session_state["sdk_count_slider"] = cnt_val
+                        st.session_state["sdk_exact_custom_count_in"] = cnt_val
+                        st.rerun()
 
             c_n1, c_n2 = st.columns([0.85, 1.15], gap="small")
             with c_n1:
@@ -2103,6 +2120,87 @@ with tab_sudoku:
                         help="Keep off for Canva Bulk (Canva provides text boxes). Turn on for standalone PNG printing.",
                     )
 
+            with st.expander("📅 Date & Calendar Integration", expanded=False):
+                sdk_enable_date = st.checkbox(
+                    "Insert date or calendar with each game",
+                    value=False,
+                    key="sdk_enable_date_chk",
+                    help="Automatically stamps each Sudoku puzzle with a calendar date or mini month calendar card.",
+                )
+                if sdk_enable_date:
+                    c_dm1, c_dm2 = st.columns(2, gap="small")
+                    with c_dm1:
+                        sdk_date_mode = st.radio(
+                            "Display Type",
+                            ["📝 Formatted Date Text", "🗓️ Mini Month Calendar (Image)"],
+                            key="sdk_date_mode_rad",
+                            help="Date text adds formatted text to titles and Canva Excel; Calendar image generates 300 DPI mini month calendar cards.",
+                        )
+                    with c_dm2:
+                        sdk_start_date = st.date_input(
+                            "Start Date",
+                            value=datetime.date(2026, 1, 1),
+                            key="sdk_start_date_in",
+                            help="Starting date for the first puzzle in this volume.",
+                        )
+
+                    if sdk_date_mode == "📝 Formatted Date Text":
+                        sdk_date_fmt = st.selectbox(
+                            "Date Format Preset",
+                            DATE_FORMAT_PRESETS,
+                            index=0,
+                            key="sdk_date_fmt_sel",
+                            help="Select how dates should be formatted (e.g. 27-September, 27-sept-2026, 9-27-2026).",
+                        )
+                        sdk_cal_prog = "Daily (Highlight day)"
+                        sdk_cal_theme = "Modern Emerald"
+                        sdk_cal_sunday = True
+                    else:
+                        c_c1, c_c2 = st.columns(2, gap="small")
+                        with c_c1:
+                            sdk_cal_prog = st.selectbox(
+                                "Calendar Progression",
+                                ["Daily (Highlight day)", "Monthly (Full month per game)"],
+                                index=0,
+                                key="sdk_cal_prog_sel",
+                            )
+                            sdk_cal_theme = st.selectbox(
+                                "Calendar Theme",
+                                list(CALENDAR_THEMES.keys()),
+                                index=0,
+                                key="sdk_cal_theme_sel",
+                            )
+                        with c_c2:
+                            sdk_cal_sunday = st.toggle(
+                                "Week starts on Sunday",
+                                value=True,
+                                key="sdk_cal_sun_tog",
+                                help="When on, calendar columns start on Sunday (S M T W T F S). When off, starts Monday.",
+                            )
+                            sdk_date_fmt = st.selectbox(
+                                "Date Label Format",
+                                DATE_FORMAT_PRESETS,
+                                index=0,
+                                key="sdk_date_fmt_sub_sel",
+                            )
+                else:
+                    sdk_date_mode = "📝 Formatted Date Text"
+                    sdk_start_date = datetime.date(2026, 1, 1)
+                    sdk_date_fmt = "27-September"
+                    sdk_cal_prog = "Daily (Highlight day)"
+                    sdk_cal_theme = "Modern Emerald"
+                    sdk_cal_sunday = True
+
+            sdk_date_cfg = {
+                "enabled": sdk_enable_date,
+                "mode": "calendar_image" if sdk_date_mode.startswith("🗓️") else "text",
+                "start_date": sdk_start_date,
+                "format_choice": sdk_date_fmt,
+                "progression": "monthly" if "Monthly" in sdk_cal_prog else "daily",
+                "calendar_theme": sdk_cal_theme,
+                "first_day_sunday": sdk_cal_sunday,
+            }
+
     # Active Sudoku Style Object
     active_sudoku_style = SimpleNamespace(
         cell_style=st.session_state["s_cell_style"],
@@ -2138,6 +2236,7 @@ with tab_sudoku:
         sdk_hash = hash(
             f"{selected_sudoku_type.value}_{selected_difficulty.value}_{sdk_count}_{sdk_start_num}_{sdk_seed}_"
             f"{symmetric_clues}_{wordoku_word_val}_{custom_clues_val}_{sdk_title_template}_{sdk_puzzles_per_page}_{sdk_solutions_per_page}_"
+            f"{sdk_enable_date}_{sdk_date_cfg['mode']}_{sdk_date_cfg['start_date']}_{sdk_date_cfg['format_choice']}_{sdk_date_cfg['progression']}_{sdk_date_cfg['calendar_theme']}_{sdk_date_cfg['first_day_sunday']}_"
             f"{active_sudoku_style.cell_style}_{active_sudoku_style.outer_line_width}_{active_sudoku_style.block_line_width}_"
             f"{active_sudoku_style.inner_line_width}_{active_sudoku_style.grid_color}_{active_sudoku_style.shading_mode}_"
             f"{active_sudoku_style.font_scale}_{active_sudoku_style.clue_font}_{active_sudoku_style.solution_color}"
@@ -2198,6 +2297,29 @@ with tab_sudoku:
                     start_i = (sdk_book_page_idx - 1) * sdk_puzzles_per_page
                     end_i = start_i + sdk_puzzles_per_page
                     puz_slice = sudoku_puzzles[start_i:end_i]
+
+                    # Slice dates & calendar images if date enabled
+                    slice_dates = []
+                    slice_cals = []
+                    if sdk_enable_date:
+                        for p_idx in range(start_i, min(len(sudoku_puzzles), end_i)):
+                            info = get_puzzle_date_info(
+                                p_idx,
+                                sdk_date_cfg["start_date"],
+                                progression=sdk_date_cfg["progression"],
+                                format_choice=sdk_date_cfg["format_choice"],
+                            )
+                            slice_dates.append(info["date_str"])
+                            if sdk_date_cfg["mode"] == "calendar_image":
+                                c_img = render_mini_month_calendar(
+                                    year=info["year"],
+                                    month=info["month"],
+                                    highlight_day=info["highlight_day"],
+                                    theme=sdk_date_cfg["calendar_theme"],
+                                    first_day_sunday=sdk_date_cfg["first_day_sunday"],
+                                )
+                                slice_cals.append(c_img)
+
                     page_img = render_sudoku_puzzle_page_image(
                         puz_slice,
                         active_sudoku_style,
@@ -2206,6 +2328,8 @@ with tab_sudoku:
                         total_pages=total_sdk_book_pages,
                         dpi=160,
                         include_instructions=sdk_include_instructions,
+                        date_strings=slice_dates if sdk_enable_date else None,
+                        calendar_images=slice_cals if (sdk_enable_date and sdk_date_cfg["mode"] == "calendar_image") else None,
                     )
                     st.image(page_img, width="stretch")
                     st.caption(
@@ -2277,6 +2401,16 @@ with tab_sudoku:
                             st.session_state["sdk_curr_puz_idx"] = sdk_selected_idx
 
                     active_p = sudoku_puzzles[sdk_selected_idx - 1]
+                    p_date_txt = None
+                    if sdk_enable_date:
+                        p_info = get_puzzle_date_info(
+                            sdk_selected_idx - 1,
+                            sdk_date_cfg["start_date"],
+                            progression=sdk_date_cfg["progression"],
+                            format_choice=sdk_date_cfg["format_choice"],
+                        )
+                        p_date_txt = p_info["date_str"]
+
                     sdk_img = render_sudoku_image(
                         active_p,
                         style=active_sudoku_style,
@@ -2284,6 +2418,7 @@ with tab_sudoku:
                         dpi=160,
                         solution=(sdk_view_mode == "🎯 Single Solution"),
                         include_header=sdk_embed_header_in_img,
+                        date_text=p_date_txt,
                     )
 
                     st.image(sdk_img, width="stretch")
@@ -2311,13 +2446,14 @@ with tab_sudoku:
 
             with sdk_exp_col:
                 st.markdown('<div class="section-title">Export Sudoku Bundle</div>', unsafe_allow_html=True)
+                date_status = f" · Date: {sdk_date_fmt}" if sdk_enable_date else ""
                 if sdk_include_sol_in_same_excel:
                     st.caption(
-                        f"Book Trim: {sdk_trim_choice.split(' ')[0]} · {sdk_puzzles_per_page} game(s)/page · Solutions in Canva Bulk · 300 DPI print-ready"
+                        f"Book Trim: {sdk_trim_choice.split(' ')[0]} · {sdk_puzzles_per_page} game(s)/page · Solutions in Canva Bulk{date_status} · 300 DPI print-ready"
                     )
                 else:
                     st.caption(
-                        f"Book Trim: {sdk_trim_choice.split(' ')[0]} · {sdk_puzzles_per_page} game(s)/page · {sdk_solutions_per_page} solutions/page · 300 DPI print-ready"
+                        f"Book Trim: {sdk_trim_choice.split(' ')[0]} · {sdk_puzzles_per_page} game(s)/page · {sdk_solutions_per_page} solutions/page{date_status} · 300 DPI print-ready"
                     )
 
                 if st.button("Generate Sudoku Bundle", type="primary", width="stretch", key="sdk_gen_btn"):
@@ -2333,6 +2469,7 @@ with tab_sudoku:
                         trim_choice=sdk_trim_choice,
                         include_instructions=sdk_include_instructions,
                         include_solution_in_same_excel=sdk_include_sol_in_same_excel,
+                        date_config=sdk_date_cfg if sdk_enable_date else None,
                         progress_bar=sdk_bar,
                     )
 

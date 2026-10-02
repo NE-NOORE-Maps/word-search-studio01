@@ -33,11 +33,13 @@ def build_sudoku_pdf(
     solutions_per_page: int = 6,
     include_instructions: bool = True,
     show_solution_divider: bool = True,
+    date_strings: Optional[List[str]] = None,
+    calendar_images: Optional[List[Image.Image]] = None,
     progress_callback: Optional[Any] = None,
 ) -> bytes:
     """Generate a multi-page KDP-compliant PDF book with puzzle pages and solution pages."""
     page_w, page_h = TRIM_SIZES.get(trim_choice, (8.5 * 72, 11.0 * 72))
-    margin = 36.0 # 0.5 inch safe margin
+    margin = 36.0  # 0.5 inch safe margin
 
     buf = io.BytesIO()
     pdf = canvas.Canvas(buf, pagesize=(page_w, page_h))
@@ -64,35 +66,79 @@ def build_sudoku_pdf(
     # -------------------------------------------------------------
     if puzzles_per_page == 1:
         for idx, p in enumerate(puzzles):
-            # Header: Title
-            pdf.setFont("Helvetica-Bold", 20 if page_w > 500 else 16)
-            pdf.setFillColorRGB(0.08, 0.12, 0.10)
-            pdf.drawCentredString(page_w / 2.0, page_h - margin - 24, p.title)
+            d_txt = date_strings[idx] if (date_strings and idx < len(date_strings) and date_strings[idx]) else None
+            cal_img = calendar_images[idx] if (calendar_images and idx < len(calendar_images) and calendar_images[idx]) else None
 
-            # Subtitle: Difficulty
-            pdf.setFont("Helvetica", 11 if page_w > 500 else 9)
-            pdf.setFillColorRGB(0.35, 0.40, 0.38)
-            diff_str = f"Difficulty: {p.difficulty_label}   {p.difficulty_stars}"
-            pdf.drawCentredString(page_w / 2.0, page_h - margin - 42, diff_str)
+            if cal_img:
+                cal_w = 140.0 if page_w > 500 else 105.0
+                cal_h = cal_w * 0.80
+                pdf.drawImage(
+                    ImageReader(cal_img),
+                    page_w - margin - cal_w,
+                    page_h - margin - cal_h - 10,
+                    width=cal_w,
+                    height=cal_h,
+                    preserveAspectRatio=True,
+                )
+                if d_txt:
+                    pdf.setFont("Helvetica-Bold", 18 if page_w > 500 else 14)
+                    pdf.setFillColorRGB(0.08, 0.12, 0.10)
+                    pdf.drawString(margin, page_h - margin - 22, d_txt)
 
-            # Optional Instructions
-            top_offset = margin + 54
-            if include_instructions:
-                pdf.setFont("Helvetica-Oblique", 9 if page_w > 500 else 7.5)
-                pdf.setFillColorRGB(0.45, 0.50, 0.48)
-                inst = "Fill in the grid so that every row, column, and block contains each number exactly once."
-                if p.puzzle_type.value == "wordoku_9x9":
-                    inst = f"Fill the grid so every row, column, and block contains all 9 letters of '{p.wordoku_word}'."
-                elif p.puzzle_type.value == "sudoku_x":
-                    inst = "Standard rules apply, plus each main diagonal must contain numbers 1 to 9."
-                elif p.puzzle_type.value == "windoku":
-                    inst = "Standard rules apply, plus each shaded 3x3 inner window contains numbers 1 to 9."
-                pdf.drawCentredString(page_w / 2.0, page_h - top_offset, inst)
-                top_offset += 16
+                    pdf.setFont("Helvetica", 11 if page_w > 500 else 9)
+                    pdf.setFillColorRGB(0.35, 0.40, 0.38)
+                    pdf.drawString(margin, page_h - margin - 38, f"{p.title}  ·  {p.difficulty_label} {p.difficulty_stars}")
+                else:
+                    pdf.setFont("Helvetica-Bold", 18 if page_w > 500 else 14)
+                    pdf.setFillColorRGB(0.08, 0.12, 0.10)
+                    pdf.drawString(margin, page_h - margin - 22, p.title)
+
+                    pdf.setFont("Helvetica", 11 if page_w > 500 else 9)
+                    pdf.setFillColorRGB(0.35, 0.40, 0.38)
+                    pdf.drawString(margin, page_h - margin - 38, f"Difficulty: {p.difficulty_label}   {p.difficulty_stars}")
+
+                top_offset = margin + cal_h + 20
+                if include_instructions:
+                    pdf.setFont("Helvetica-Oblique", 8.5 if page_w > 500 else 7.5)
+                    pdf.setFillColorRGB(0.45, 0.50, 0.48)
+                    inst = "Fill in the grid so that every row, column, and block contains each number exactly once."
+                    pdf.drawString(margin, page_h - top_offset, inst)
+                    top_offset += 16
+            else:
+                if d_txt:
+                    pdf.setFont("Helvetica-Bold", 20 if page_w > 500 else 16)
+                    pdf.setFillColorRGB(0.08, 0.12, 0.10)
+                    pdf.drawCentredString(page_w / 2.0, page_h - margin - 24, d_txt)
+
+                    pdf.setFont("Helvetica", 11 if page_w > 500 else 9)
+                    pdf.setFillColorRGB(0.35, 0.40, 0.38)
+                    pdf.drawCentredString(page_w / 2.0, page_h - margin - 42, f"{p.title}  ·  {p.difficulty_label} {p.difficulty_stars}")
+                else:
+                    pdf.setFont("Helvetica-Bold", 20 if page_w > 500 else 16)
+                    pdf.setFillColorRGB(0.08, 0.12, 0.10)
+                    pdf.drawCentredString(page_w / 2.0, page_h - margin - 24, p.title)
+
+                    pdf.setFont("Helvetica", 11 if page_w > 500 else 9)
+                    pdf.setFillColorRGB(0.35, 0.40, 0.38)
+                    pdf.drawCentredString(page_w / 2.0, page_h - margin - 42, f"Difficulty: {p.difficulty_label}   {p.difficulty_stars}")
+
+                top_offset = margin + 54
+                if include_instructions:
+                    pdf.setFont("Helvetica-Oblique", 9 if page_w > 500 else 7.5)
+                    pdf.setFillColorRGB(0.45, 0.50, 0.48)
+                    inst = "Fill in the grid so that every row, column, and block contains each number exactly once."
+                    if p.puzzle_type.value == "wordoku_9x9":
+                        inst = f"Fill the grid so every row, column, and block contains all 9 letters of '{p.wordoku_word}'."
+                    elif p.puzzle_type.value == "sudoku_x":
+                        inst = "Standard rules apply, plus each main diagonal must contain numbers 1 to 9."
+                    elif p.puzzle_type.value == "windoku":
+                        inst = "Standard rules apply, plus each shaded 3x3 inner window contains numbers 1 to 9."
+                    pdf.drawCentredString(page_w / 2.0, page_h - top_offset, inst)
+                    top_offset += 16
 
             # Draw Puzzle Grid (Centered)
             avail_w = page_w - 2 * margin
-            avail_h = page_h - top_offset - margin - 40 # leave room for footer
+            avail_h = page_h - top_offset - margin - 40  # leave room for footer
             grid_dim = min(avail_w, avail_h, 440.0 if page_w > 500 else 320.0)
 
             gx = (page_w - grid_dim) / 2.0
@@ -131,11 +177,20 @@ def build_sudoku_pdf(
                     break
                 p = puzzles[idx]
                 sy = page_h - margin - (offset + 1) * slot_h
+                d_txt = date_strings[idx] if (date_strings and idx < len(date_strings) and date_strings[idx]) else ""
+                cal_img = calendar_images[idx] if (calendar_images and idx < len(calendar_images) and calendar_images[idx]) else None
 
-                # Puzzle Title & Difficulty
-                pdf.setFont("Helvetica-Bold", 14 if page_w > 500 else 12)
+                pdf.setFont("Helvetica-Bold", 13 if page_w > 500 else 11)
                 pdf.setFillColorRGB(0.08, 0.12, 0.10)
-                pdf.drawCentredString(page_w / 2.0, sy + slot_h - 18, f"{p.title}  ·  {p.difficulty_label} {p.difficulty_stars}")
+                if cal_img:
+                    cal_w = 70.0 if page_w > 500 else 55.0
+                    cal_h = cal_w * 0.80
+                    pdf.drawImage(ImageReader(cal_img), page_w - margin - cal_w - 5, sy + slot_h - cal_h - 6, width=cal_w, height=cal_h, preserveAspectRatio=True)
+                    lbl = f"{d_txt} · {p.title} ({p.difficulty_label})" if d_txt else f"{p.title}  ·  {p.difficulty_label} {p.difficulty_stars}"
+                    pdf.drawString(margin + 5, sy + slot_h - 18, lbl)
+                else:
+                    lbl = f"{d_txt}  ·  {p.title}  ·  {p.difficulty_label} {p.difficulty_stars}" if d_txt else f"{p.title}  ·  {p.difficulty_label} {p.difficulty_stars}"
+                    pdf.drawCentredString(page_w / 2.0, sy + slot_h - 18, lbl)
 
                 slot_top_pad = 28
                 if include_instructions and offset == 0:
@@ -190,11 +245,20 @@ def build_sudoku_pdf(
 
                 cx = margin + col_i * cell_w
                 cy = page_h - margin - (row_i + 1) * cell_h
+                d_txt = date_strings[idx] if (date_strings and idx < len(date_strings) and date_strings[idx]) else ""
+                cal_img = calendar_images[idx] if (calendar_images and idx < len(calendar_images) and calendar_images[idx]) else None
 
-                # Puzzle Label
-                pdf.setFont("Helvetica-Bold", 11 if page_w > 500 else 9.5)
+                pdf.setFont("Helvetica-Bold", 10.5 if page_w > 500 else 9.0)
                 pdf.setFillColorRGB(0.08, 0.12, 0.10)
-                pdf.drawCentredString(cx + cell_w / 2.0, cy + cell_h - 14, f"{p.title} ({p.difficulty_label})")
+                if cal_img:
+                    cal_w = 46.0 if page_w > 500 else 36.0
+                    cal_h = cal_w * 0.80
+                    pdf.drawImage(ImageReader(cal_img), cx + cell_w - cal_w - 4, cy + cell_h - cal_h - 4, width=cal_w, height=cal_h, preserveAspectRatio=True)
+                    lbl = f"{d_txt} #{p.puzzle_id}" if d_txt else f"{p.title} ({p.difficulty_label})"
+                    pdf.drawString(cx + 6, cy + cell_h - 14, lbl)
+                else:
+                    lbl = f"{d_txt}  ·  {p.title} ({p.difficulty_label})" if d_txt else f"{p.title} ({p.difficulty_label})"
+                    pdf.drawCentredString(cx + cell_w / 2.0, cy + cell_h - 14, lbl)
 
                 puz_dim = min(cell_w - 18, cell_h - 28, 200.0 if page_w > 500 else 150.0)
                 gx = cx + (cell_w - puz_dim) / 2.0
@@ -220,7 +284,7 @@ def build_sudoku_pdf(
             if progress_callback:
                 progress_callback(50 + int((page_start / max(1, total_puzzles)) * 30), f"Building PDF page {current_page_num}...")
 
-    else: # 6
+    else:  # 6
         # 6 puzzles per page: 2 columns x 3 rows
         cols_n, rows_n = 2, 3
         for page_start in range(0, total_puzzles, 6):
@@ -239,11 +303,20 @@ def build_sudoku_pdf(
 
                 cx = margin + col_i * cell_w
                 cy = page_h - margin - (row_i + 1) * cell_h
+                d_txt = date_strings[idx] if (date_strings and idx < len(date_strings) and date_strings[idx]) else ""
+                cal_img = calendar_images[idx] if (calendar_images and idx < len(calendar_images) and calendar_images[idx]) else None
 
-                # Puzzle Label
-                pdf.setFont("Helvetica-Bold", 9.5 if page_w > 500 else 8.5)
+                pdf.setFont("Helvetica-Bold", 9.0 if page_w > 500 else 8.0)
                 pdf.setFillColorRGB(0.08, 0.12, 0.10)
-                pdf.drawCentredString(cx + cell_w / 2.0, cy + cell_h - 12, f"{p.title} ({p.difficulty_label})")
+                if cal_img:
+                    cal_w = 38.0 if page_w > 500 else 30.0
+                    cal_h = cal_w * 0.80
+                    pdf.drawImage(ImageReader(cal_img), cx + cell_w - cal_w - 3, cy + cell_h - cal_h - 3, width=cal_w, height=cal_h, preserveAspectRatio=True)
+                    lbl = f"{d_txt} #{p.puzzle_id}" if d_txt else f"#{p.puzzle_id} ({p.difficulty_label})"
+                    pdf.drawString(cx + 4, cy + cell_h - 12, lbl)
+                else:
+                    lbl = f"{d_txt} · {p.title}" if d_txt else f"{p.title} ({p.difficulty_label})"
+                    pdf.drawCentredString(cx + cell_w / 2.0, cy + cell_h - 12, lbl)
 
                 puz_dim = min(cell_w - 14, cell_h - 22, 160.0 if page_w > 500 else 120.0)
                 gx = cx + (cell_w - puz_dim) / 2.0
