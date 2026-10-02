@@ -17,3 +17,6 @@ Thumbs.db
 .idea/
 .vscode/
 .streamlit/secrets.toml
+
+# Standalone HTML5/JS repo
+htmljs-activity-studio/
