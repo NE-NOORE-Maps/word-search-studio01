@@ -29,6 +29,7 @@ def build_sudoku_pdf(
     puzzles: List[SudokuPuzzle],
     style: Any,
     trim_choice: str = "8.5 x 11 inches (Letter)",
+    puzzles_per_page: int = 1,
     solutions_per_page: int = 6,
     include_instructions: bool = True,
     show_solution_divider: bool = True,
@@ -59,62 +60,214 @@ def build_sudoku_pdf(
             progress_callback(int((idx / max(1, total_puzzles)) * 50), f"Rendering puzzle {idx + 1} of {total_puzzles}...")
 
     # -------------------------------------------------------------
-    # 1. PUZZLE PAGES (1 puzzle per page)
+    # 1. PUZZLE PAGES (1, 2, 4, or 6 games per page)
     # -------------------------------------------------------------
-    for idx, p in enumerate(puzzles):
-        # Header: Title
-        pdf.setFont("Helvetica-Bold", 20 if page_w > 500 else 16)
-        pdf.setFillColorRGB(0.08, 0.12, 0.10)
-        pdf.drawCentredString(page_w / 2.0, page_h - margin - 24, p.title)
+    if puzzles_per_page == 1:
+        for idx, p in enumerate(puzzles):
+            # Header: Title
+            pdf.setFont("Helvetica-Bold", 20 if page_w > 500 else 16)
+            pdf.setFillColorRGB(0.08, 0.12, 0.10)
+            pdf.drawCentredString(page_w / 2.0, page_h - margin - 24, p.title)
 
-        # Subtitle: Difficulty
-        pdf.setFont("Helvetica", 11 if page_w > 500 else 9)
-        pdf.setFillColorRGB(0.35, 0.40, 0.38)
-        diff_str = f"Difficulty: {p.difficulty_label}   {p.difficulty_stars}"
-        pdf.drawCentredString(page_w / 2.0, page_h - margin - 42, diff_str)
+            # Subtitle: Difficulty
+            pdf.setFont("Helvetica", 11 if page_w > 500 else 9)
+            pdf.setFillColorRGB(0.35, 0.40, 0.38)
+            diff_str = f"Difficulty: {p.difficulty_label}   {p.difficulty_stars}"
+            pdf.drawCentredString(page_w / 2.0, page_h - margin - 42, diff_str)
 
-        # Optional Instructions
-        top_offset = margin + 54
-        if include_instructions:
-            pdf.setFont("Helvetica-Oblique", 9 if page_w > 500 else 7.5)
-            pdf.setFillColorRGB(0.45, 0.50, 0.48)
-            inst = "Fill in the grid so that every row, column, and block contains each number exactly once."
-            if p.puzzle_type.value == "wordoku_9x9":
-                inst = f"Fill the grid so every row, column, and block contains all 9 letters of '{p.wordoku_word}'."
-            elif p.puzzle_type.value == "sudoku_x":
-                inst = "Standard rules apply, plus each main diagonal must contain numbers 1 to 9."
-            elif p.puzzle_type.value == "windoku":
-                inst = "Standard rules apply, plus each shaded 3x3 inner window contains numbers 1 to 9."
-            pdf.drawCentredString(page_w / 2.0, page_h - top_offset, inst)
-            top_offset += 16
+            # Optional Instructions
+            top_offset = margin + 54
+            if include_instructions:
+                pdf.setFont("Helvetica-Oblique", 9 if page_w > 500 else 7.5)
+                pdf.setFillColorRGB(0.45, 0.50, 0.48)
+                inst = "Fill in the grid so that every row, column, and block contains each number exactly once."
+                if p.puzzle_type.value == "wordoku_9x9":
+                    inst = f"Fill the grid so every row, column, and block contains all 9 letters of '{p.wordoku_word}'."
+                elif p.puzzle_type.value == "sudoku_x":
+                    inst = "Standard rules apply, plus each main diagonal must contain numbers 1 to 9."
+                elif p.puzzle_type.value == "windoku":
+                    inst = "Standard rules apply, plus each shaded 3x3 inner window contains numbers 1 to 9."
+                pdf.drawCentredString(page_w / 2.0, page_h - top_offset, inst)
+                top_offset += 16
 
-        # Draw Puzzle Grid (Centered)
-        avail_w = page_w - 2 * margin
-        avail_h = page_h - top_offset - margin - 40 # leave room for footer
-        grid_dim = min(avail_w, avail_h, 440.0 if page_w > 500 else 320.0)
+            # Draw Puzzle Grid (Centered)
+            avail_w = page_w - 2 * margin
+            avail_h = page_h - top_offset - margin - 40 # leave room for footer
+            grid_dim = min(avail_w, avail_h, 440.0 if page_w > 500 else 320.0)
 
-        gx = (page_w - grid_dim) / 2.0
-        gy = page_h - top_offset - 10 - grid_dim
+            gx = (page_w - grid_dim) / 2.0
+            gy = page_h - top_offset - 10 - grid_dim
 
-        pdf.drawImage(
-            ImageReader(puzzle_imgs[idx]),
-            gx,
-            gy,
-            width=grid_dim,
-            height=grid_dim,
-            preserveAspectRatio=True,
-        )
+            pdf.drawImage(
+                ImageReader(puzzle_imgs[idx]),
+                gx,
+                gy,
+                width=grid_dim,
+                height=grid_dim,
+                preserveAspectRatio=True,
+            )
 
-        # Footer: Page Number
-        pdf.setFont("Helvetica", 9)
-        pdf.setFillColorRGB(0.4, 0.4, 0.4)
-        pdf.drawCentredString(page_w / 2.0, margin, str(current_page_num))
+            # Footer: Page Number
+            pdf.setFont("Helvetica", 9)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            pdf.drawCentredString(page_w / 2.0, margin, str(current_page_num))
 
-        pdf.showPage()
-        current_page_num += 1
+            pdf.showPage()
+            current_page_num += 1
 
-        if progress_callback:
-            progress_callback(50 + int((idx / max(1, total_puzzles)) * 30), f"Building PDF page {idx + 1}...")
+            if progress_callback:
+                progress_callback(50 + int((idx / max(1, total_puzzles)) * 30), f"Building PDF page {idx + 1}...")
+
+    elif puzzles_per_page == 2:
+        # 2 puzzles per page: stacked vertically (1 column, 2 rows)
+        for page_start in range(0, total_puzzles, 2):
+            avail_w = page_w - 2 * margin
+            avail_h = page_h - 2 * margin - 30
+            slot_h = avail_h / 2.0
+
+            for offset in range(2):
+                idx = page_start + offset
+                if idx >= total_puzzles:
+                    break
+                p = puzzles[idx]
+                sy = page_h - margin - (offset + 1) * slot_h
+
+                # Puzzle Title & Difficulty
+                pdf.setFont("Helvetica-Bold", 14 if page_w > 500 else 12)
+                pdf.setFillColorRGB(0.08, 0.12, 0.10)
+                pdf.drawCentredString(page_w / 2.0, sy + slot_h - 18, f"{p.title}  ·  {p.difficulty_label} {p.difficulty_stars}")
+
+                slot_top_pad = 28
+                if include_instructions and offset == 0:
+                    pdf.setFont("Helvetica-Oblique", 8)
+                    pdf.setFillColorRGB(0.45, 0.50, 0.48)
+                    inst = "Fill each row, column, and 3x3 box with numbers 1 to 9."
+                    if p.puzzle_type.value == "wordoku_9x9":
+                        inst = f"Fill each row, column, and box with letters of '{p.wordoku_word}'."
+                    pdf.drawCentredString(page_w / 2.0, sy + slot_h - 32, inst)
+                    slot_top_pad = 40
+
+                puz_dim = min(avail_w - 20, slot_h - slot_top_pad - 10, 260.0 if page_w > 500 else 190.0)
+                gx = (page_w - puz_dim) / 2.0
+                gy = sy + (slot_h - slot_top_pad - puz_dim) / 2.0
+
+                pdf.drawImage(
+                    ImageReader(puzzle_imgs[idx]),
+                    gx,
+                    gy,
+                    width=puz_dim,
+                    height=puz_dim,
+                    preserveAspectRatio=True,
+                )
+
+            # Footer: Page Number
+            pdf.setFont("Helvetica", 9)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            pdf.drawCentredString(page_w / 2.0, margin, str(current_page_num))
+
+            pdf.showPage()
+            current_page_num += 1
+
+            if progress_callback:
+                progress_callback(50 + int((page_start / max(1, total_puzzles)) * 30), f"Building PDF page {current_page_num}...")
+
+    elif puzzles_per_page == 4:
+        # 4 puzzles per page: 2 columns x 2 rows
+        cols_n, rows_n = 2, 2
+        for page_start in range(0, total_puzzles, 4):
+            avail_w = page_w - 2 * margin
+            avail_h = page_h - 2 * margin - 30
+            cell_w = avail_w / cols_n
+            cell_h = avail_h / rows_n
+
+            for offset in range(4):
+                idx = page_start + offset
+                if idx >= total_puzzles:
+                    break
+                p = puzzles[idx]
+                col_i = offset % cols_n
+                row_i = offset // cols_n
+
+                cx = margin + col_i * cell_w
+                cy = page_h - margin - (row_i + 1) * cell_h
+
+                # Puzzle Label
+                pdf.setFont("Helvetica-Bold", 11 if page_w > 500 else 9.5)
+                pdf.setFillColorRGB(0.08, 0.12, 0.10)
+                pdf.drawCentredString(cx + cell_w / 2.0, cy + cell_h - 14, f"{p.title} ({p.difficulty_label})")
+
+                puz_dim = min(cell_w - 18, cell_h - 28, 200.0 if page_w > 500 else 150.0)
+                gx = cx + (cell_w - puz_dim) / 2.0
+                gy = cy + (cell_h - 22 - puz_dim) / 2.0
+
+                pdf.drawImage(
+                    ImageReader(puzzle_imgs[idx]),
+                    gx,
+                    gy,
+                    width=puz_dim,
+                    height=puz_dim,
+                    preserveAspectRatio=True,
+                )
+
+            # Footer: Page Number
+            pdf.setFont("Helvetica", 9)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            pdf.drawCentredString(page_w / 2.0, margin, str(current_page_num))
+
+            pdf.showPage()
+            current_page_num += 1
+
+            if progress_callback:
+                progress_callback(50 + int((page_start / max(1, total_puzzles)) * 30), f"Building PDF page {current_page_num}...")
+
+    else: # 6
+        # 6 puzzles per page: 2 columns x 3 rows
+        cols_n, rows_n = 2, 3
+        for page_start in range(0, total_puzzles, 6):
+            avail_w = page_w - 2 * margin
+            avail_h = page_h - 2 * margin - 30
+            cell_w = avail_w / cols_n
+            cell_h = avail_h / rows_n
+
+            for offset in range(6):
+                idx = page_start + offset
+                if idx >= total_puzzles:
+                    break
+                p = puzzles[idx]
+                col_i = offset % cols_n
+                row_i = offset // cols_n
+
+                cx = margin + col_i * cell_w
+                cy = page_h - margin - (row_i + 1) * cell_h
+
+                # Puzzle Label
+                pdf.setFont("Helvetica-Bold", 9.5 if page_w > 500 else 8.5)
+                pdf.setFillColorRGB(0.08, 0.12, 0.10)
+                pdf.drawCentredString(cx + cell_w / 2.0, cy + cell_h - 12, f"{p.title} ({p.difficulty_label})")
+
+                puz_dim = min(cell_w - 14, cell_h - 22, 160.0 if page_w > 500 else 120.0)
+                gx = cx + (cell_w - puz_dim) / 2.0
+                gy = cy + (cell_h - 18 - puz_dim) / 2.0
+
+                pdf.drawImage(
+                    ImageReader(puzzle_imgs[idx]),
+                    gx,
+                    gy,
+                    width=puz_dim,
+                    height=puz_dim,
+                    preserveAspectRatio=True,
+                )
+
+            # Footer: Page Number
+            pdf.setFont("Helvetica", 9)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            pdf.drawCentredString(page_w / 2.0, margin, str(current_page_num))
+
+            pdf.showPage()
+            current_page_num += 1
+
+            if progress_callback:
+                progress_callback(50 + int((page_start / max(1, total_puzzles)) * 30), f"Building PDF page {current_page_num}...")
 
     # -------------------------------------------------------------
     # 2. SOLUTIONS SECTION

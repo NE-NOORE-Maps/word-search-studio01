@@ -291,6 +291,44 @@ assert sol_sep is not None and os.path.exists(sol_sep)
 assert os.path.exists(zip_sep)
 print("ok Sudoku workbook export with separate solutions excel passed")
 
+# 9. Sudoku Multi-Game Per Page Tests (1, 2, 4, 6 games per page)
+from core.sudoku_raster import render_sudoku_puzzle_page_image
+
+test_puzzles = [p_s9, p_s4, p_s6, p_sw, p_sx, p_win]
+
+# 9a. Test book interior page rendering for 1, 2, 4, 6
+for g_per_page in [1, 2, 4, 6]:
+    puz_page_img = render_sudoku_puzzle_page_image(
+        test_puzzles[:g_per_page],
+        style_s_classic,
+        puzzles_per_page=g_per_page,
+        page_num=1,
+        total_pages=2,
+        dpi=120,
+        include_instructions=True,
+    )
+    assert puz_page_img.size[0] > 0 and puz_page_img.size[1] > 0
+    print(f"ok Sudoku interior book page with {g_per_page} game(s)/page rendered successfully")
+
+# 9b. Test PDF with 4 games per page
+pdf_multi = build_sudoku_pdf(test_puzzles, style_s_classic, puzzles_per_page=4, solutions_per_page=6)
+assert len(pdf_multi) > 10000
+print("ok Sudoku KDP PDF book generator with 4 games/page passed")
+
+# 9c. Test Workbook Export with 4 games per page
+out_sdk_multi = tempfile.mkdtemp(prefix="sdk_multi_test_")
+canva_multi, sol_multi, zip_multi, pdf_multi_exp = build_sudoku_workbooks(
+    test_puzzles,
+    out_sdk_multi,
+    puzzles_per_page=4,
+    solutions_per_page=6,
+    include_solution_in_same_excel=True,
+)
+assert os.path.exists(canva_multi)
+assert os.path.exists(zip_multi)
+assert len(pdf_multi_exp) > 0
+print("ok Sudoku workbook & Canva export with 4 games/page passed")
+
 print("ALL SMOKE TESTS PASSED SUCCESSFULLY!")
 
 

@@ -17,6 +17,7 @@ from engine.sudoku import SudokuPuzzle
 def build_sudoku_workbooks(
     puzzles: List[SudokuPuzzle],
     out_dir: str,
+    puzzles_per_page: int = 1,
     solutions_per_page: int = 6,
     style: Any = None,
     trim_choice: str = "8.5 x 11 inches (Letter)",
@@ -55,29 +56,68 @@ def build_sudoku_workbooks(
     if progress_bar:
         progress_bar.progress(50, text="Generating Canva Bulk Create workbook...")
 
-    text_columns = ["page", "puzzle_num", "title", "difficulty", "clues_count"]
-    if puzzles and puzzles[0].wordoku_word:
-        text_columns.append("wordoku_word")
+    if puzzles_per_page <= 1:
+        text_columns = ["page", "puzzle_num", "title", "difficulty", "clues_count"]
+        if puzzles and puzzles[0].wordoku_word:
+            text_columns.append("wordoku_word")
 
-    image_columns = ["grid_image"]
-    if include_solution_in_same_excel:
-        image_columns.append("solution_image")
-
-    rows = []
-    for i, puzzle in enumerate(puzzles, 1):
-        row = {
-            "page": i,
-            "puzzle_num": puzzle.puzzle_id,
-            "title": puzzle.title,
-            "difficulty": puzzle.difficulty_label,
-            "clues_count": puzzle.clues_count,
-            "grid_image": grid_paths[i - 1],
-        }
+        image_columns = ["grid_image"]
         if include_solution_in_same_excel:
-            row["solution_image"] = sol_paths[i - 1]
-        if puzzle.wordoku_word:
-            row["wordoku_word"] = puzzle.wordoku_word
-        rows.append(row)
+            image_columns.append("solution_image")
+
+        rows = []
+        for i, puzzle in enumerate(puzzles, 1):
+            row = {
+                "page": i,
+                "puzzle_num": puzzle.puzzle_id,
+                "title": puzzle.title,
+                "difficulty": puzzle.difficulty_label,
+                "clues_count": puzzle.clues_count,
+                "grid_image": grid_paths[i - 1],
+            }
+            if include_solution_in_same_excel:
+                row["solution_image"] = sol_paths[i - 1]
+            if puzzle.wordoku_word:
+                row["wordoku_word"] = puzzle.wordoku_word
+            rows.append(row)
+    else:
+        text_columns = ["page", "puzzle_range"]
+        image_columns = []
+        for k in range(1, puzzles_per_page + 1):
+            text_columns.extend([f"title_{k}", f"difficulty_{k}", f"clues_{k}"])
+            image_columns.append(f"grid_image_{k}")
+            if include_solution_in_same_excel:
+                image_columns.append(f"solution_image_{k}")
+
+        rows = []
+        page_idx = 1
+        for start_idx in range(0, total, puzzles_per_page):
+            chunk = puzzles[start_idx : start_idx + puzzles_per_page]
+            p_nums = [str(p.puzzle_id) for p in chunk]
+            p_range_str = f"Puzzles {p_nums[0]}-{p_nums[-1]}" if len(p_nums) > 1 else f"Puzzle {p_nums[0]}"
+            row = {
+                "page": page_idx,
+                "puzzle_range": p_range_str,
+            }
+            for k in range(1, puzzles_per_page + 1):
+                c_idx = start_idx + k - 1
+                if c_idx < total:
+                    p = puzzles[c_idx]
+                    row[f"title_{k}"] = p.title
+                    row[f"difficulty_{k}"] = p.difficulty_label
+                    row[f"clues_{k}"] = p.clues_count
+                    row[f"grid_image_{k}"] = grid_paths[c_idx]
+                    if include_solution_in_same_excel:
+                        row[f"solution_image_{k}"] = sol_paths[c_idx]
+                else:
+                    row[f"title_{k}"] = ""
+                    row[f"difficulty_{k}"] = ""
+                    row[f"clues_{k}"] = ""
+                    row[f"grid_image_{k}"] = ""
+                    if include_solution_in_same_excel:
+                        row[f"solution_image_{k}"] = ""
+            rows.append(row)
+            page_idx += 1
 
     canva_path = os.path.join(out_dir, "sudoku_canva_bulk.xlsx")
     canva_files = write_bulk_excel(canva_path, rows, text_columns, image_columns, max_rows=0)
@@ -138,6 +178,7 @@ def build_sudoku_workbooks(
         puzzles,
         style=style,
         trim_choice=trim_choice,
+        puzzles_per_page=puzzles_per_page,
         solutions_per_page=solutions_per_page,
         include_instructions=include_instructions,
         show_solution_divider=True,

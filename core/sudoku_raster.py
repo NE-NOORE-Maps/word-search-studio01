@@ -442,3 +442,112 @@ def render_sudoku_solution_page_image(
     d.text((w / 2, h - 25), f"Page {page_num}", fill=(120, 120, 120), font=font_sub, anchor="mm")
     return img
 
+
+def render_sudoku_puzzle_page_image(
+    puzzles_slice: list[SudokuPuzzle],
+    style: Any,
+    puzzles_per_page: int = 1,
+    page_num: int = 1,
+    total_pages: int = 1,
+    dpi: int = 150,
+    include_instructions: bool = True,
+) -> Image.Image:
+    """Render a composite book interior page showing 1, 2, 4, or 6 Sudoku puzzles."""
+    w = int(8.5 * dpi)
+    h = int(11.0 * dpi)
+    img = Image.new("RGB", (w, h), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+
+    title_size = max(16, round(24.0 / 72.0 * dpi))
+    sub_size = max(10, round(12.5 / 72.0 * dpi))
+    lbl_size = max(9, round(11.0 / 72.0 * dpi))
+    inst_size = max(8, round(9.5 / 72.0 * dpi))
+
+    font_title = ImageFont.truetype(_font_path("DejaVu Sans Bold"), title_size)
+    font_sub = ImageFont.truetype(_font_path("DejaVu Sans"), sub_size)
+    font_lbl = ImageFont.truetype(_font_path("DejaVu Sans Bold"), lbl_size)
+    font_inst = ImageFont.truetype(_font_path("DejaVu Sans"), inst_size)
+
+    if puzzles_per_page == 1 and puzzles_slice:
+        p = puzzles_slice[0]
+        d.text((w / 2, 50), p.title, fill=(20, 35, 30), font=font_title, anchor="mm")
+        d.text((w / 2, 85), f"Difficulty: {p.difficulty_label}   {p.difficulty_stars}", fill=(90, 105, 98), font=font_sub, anchor="mm")
+
+        top_offset = 100
+        if include_instructions:
+            d.text((w / 2, 115), "Fill in the grid so every row, column, and block contains each number exactly once.", fill=(110, 125, 118), font=font_inst, anchor="mm")
+            top_offset = 135
+
+        p_img = render_sudoku_image(p, style, cell_mm=12.0, dpi=dpi, solution=False, include_header=False)
+        avail = min(w - 120, h - top_offset - 80)
+        p_resized = p_img.resize((int(avail), int(avail)), Image.Resampling.LANCZOS)
+        ox = (w - avail) / 2
+        oy = top_offset + (h - top_offset - 60 - avail) / 2
+        img.paste(p_resized, (int(ox), int(oy)))
+
+    elif puzzles_per_page == 2:
+        cols, rows = 1, 2
+        margin_x, margin_y = 60, 45
+        cell_w = w - 2 * margin_x
+        cell_h = (h - margin_y - 60) / rows
+
+        for idx, p in enumerate(puzzles_slice[:2]):
+            cy = margin_y + idx * cell_h
+            lbl = f"{p.title}  ·  {p.difficulty_label} {p.difficulty_stars}"
+            d.text((w / 2, cy + 18), lbl, fill=(20, 35, 30), font=font_lbl, anchor="mm")
+
+            p_img = render_sudoku_image(p, style, cell_mm=10.0, dpi=dpi, solution=False, include_header=False)
+            avail = min(cell_w - 40, cell_h - 45)
+            p_resized = p_img.resize((int(avail), int(avail)), Image.Resampling.LANCZOS)
+            ox = (w - avail) / 2
+            oy = cy + 30 + (cell_h - 45 - avail) / 2
+            img.paste(p_resized, (int(ox), int(oy)))
+
+    elif puzzles_per_page == 4:
+        cols, rows = 2, 2
+        margin_x, margin_y = 50, 40
+        cell_w = (w - 2 * margin_x) / cols
+        cell_h = (h - margin_y - 50) / rows
+
+        for idx, p in enumerate(puzzles_slice[:4]):
+            col = idx % cols
+            row = idx // cols
+            cx = margin_x + col * cell_w
+            cy = margin_y + row * cell_h
+
+            lbl = f"{p.title} ({p.difficulty_label})"
+            d.text((cx + cell_w / 2, cy + 15), lbl, fill=(20, 35, 30), font=font_lbl, anchor="mm")
+
+            p_img = render_sudoku_image(p, style, cell_mm=10.0, dpi=dpi, solution=False, include_header=False)
+            avail = min(cell_w - 28, cell_h - 38)
+            p_resized = p_img.resize((int(avail), int(avail)), Image.Resampling.LANCZOS)
+            ox = cx + (cell_w - avail) / 2
+            oy = cy + 26 + (cell_h - 38 - avail) / 2
+            img.paste(p_resized, (int(ox), int(oy)))
+
+    else:  # 6
+        cols, rows = 2, 3
+        margin_x, margin_y = 50, 35
+        cell_w = (w - 2 * margin_x) / cols
+        cell_h = (h - margin_y - 45) / rows
+
+        for idx, p in enumerate(puzzles_slice[:6]):
+            col = idx % cols
+            row = idx // cols
+            cx = margin_x + col * cell_w
+            cy = margin_y + row * cell_h
+
+            lbl = f"{p.title} ({p.difficulty_label})"
+            d.text((cx + cell_w / 2, cy + 12), lbl, fill=(20, 35, 30), font=font_lbl, anchor="mm")
+
+            p_img = render_sudoku_image(p, style, cell_mm=10.0, dpi=dpi, solution=False, include_header=False)
+            avail = min(cell_w - 22, cell_h - 30)
+            p_resized = p_img.resize((int(avail), int(avail)), Image.Resampling.LANCZOS)
+            ox = cx + (cell_w - avail) / 2
+            oy = cy + 22 + (cell_h - 30 - avail) / 2
+            img.paste(p_resized, (int(ox), int(oy)))
+
+    d.text((w / 2, h - 25), f"Page {page_num}", fill=(120, 120, 120), font=font_sub, anchor="mm")
+    return img
+
+

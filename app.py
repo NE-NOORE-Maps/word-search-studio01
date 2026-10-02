@@ -61,6 +61,7 @@ from core.sudoku_raster import (
     render_sudoku_image,
     render_sudoku_solution_image,
     render_sudoku_solution_page_image,
+    render_sudoku_puzzle_page_image,
 )
 from core.sudoku_pdf import TRIM_SIZES
 from core.sudoku_export import build_sudoku_workbooks
@@ -2062,7 +2063,7 @@ with tab_sudoku:
                     help="When checked, both puzzle and solution image paths are included in the same Canva Bulk Excel row. When unchecked, solutions are exported to a separate workbook.",
                 )
 
-                c_kd1, c_kd2 = st.columns(2, gap="small")
+                c_kd1, c_kd2, c_kd3 = st.columns([1, 1, 1], gap="small")
                 with c_kd1:
                     sdk_trim_choice = st.selectbox(
                         "KDP Book Trim Size",
@@ -2072,13 +2073,21 @@ with tab_sudoku:
                         help="Standard 8.5x11 inch activity book or 6x9 pocket puzzle book.",
                     )
                 with c_kd2:
+                    sdk_puzzles_per_page = st.selectbox(
+                        "Games Per Page",
+                        [1, 2, 4, 6],
+                        index=0,
+                        key="sdk_puz_per_page_sel",
+                        help="Select how many Sudoku puzzle games to place on each interior book page (1, 2, 4, or 6).",
+                    )
+                with c_kd3:
                     sdk_solutions_per_page = st.selectbox(
                         "Solutions Per Page",
                         [1, 2, 4, 6, 9],
                         index=3,
                         disabled=sdk_include_sol_in_same_excel,
                         key="sdk_sol_per_page_sel",
-                        help="4, 6, or 9 per page saves book page count in KDP solutions section or separate workbook.",
+                        help="1, 2, 4, 6, or 9 per page saves book page count in KDP solutions section or separate workbook.",
                     )
 
                 c_tg1, c_tg2 = st.columns(2, gap="small")
@@ -2128,7 +2137,7 @@ with tab_sudoku:
         # Clear old export buffers on config change
         sdk_hash = hash(
             f"{selected_sudoku_type.value}_{selected_difficulty.value}_{sdk_count}_{sdk_start_num}_{sdk_seed}_"
-            f"{symmetric_clues}_{wordoku_word_val}_{custom_clues_val}_{sdk_title_template}_"
+            f"{symmetric_clues}_{wordoku_word_val}_{custom_clues_val}_{sdk_title_template}_{sdk_puzzles_per_page}_{sdk_solutions_per_page}_"
             f"{active_sudoku_style.cell_style}_{active_sudoku_style.outer_line_width}_{active_sudoku_style.block_line_width}_"
             f"{active_sudoku_style.inner_line_width}_{active_sudoku_style.grid_color}_{active_sudoku_style.shading_mode}_"
             f"{active_sudoku_style.font_scale}_{active_sudoku_style.clue_font}_{active_sudoku_style.solution_color}"
@@ -2140,27 +2149,70 @@ with tab_sudoku:
 
         if sudoku_puzzles:
             # Metrics strip
-            sm1, sm2, sm3, sm4, sm5 = st.columns(5, gap="small")
+            sm1, sm2, sm3, sm4, sm5, sm6 = st.columns(6, gap="small")
             sm1.metric("Puzzles", len(sudoku_puzzles))
             sm2.metric("Type", TYPE_LABELS[selected_sudoku_type].split(" ")[0])
             sm3.metric("Difficulty", f"{DIFFICULTY_LABELS[selected_difficulty]} {stars}")
             sm4.metric("Grid Size", f"{dim_size} × {dim_size}")
             sm5.metric("Clues / Board", f"{sudoku_puzzles[0].clues_count}")
+            sm6.metric("Games/Page", f"{sdk_puzzles_per_page}")
 
             sdk_prev_col, sdk_exp_col = st.columns([1.55, 0.75], gap="small")
 
             with sdk_prev_col:
-                sp_nav1, sp_nav2 = st.columns([1.2, 1.2], gap="small")
+                sp_nav1, sp_nav2 = st.columns([0.95, 1.45], gap="small")
                 with sp_nav2:
                     sdk_view_mode = st.radio(
                         "Sudoku View Mode",
-                        ["🔲 Single Puzzle", "🎯 Single Solution", "📑 Solution Page (Book)"],
+                        ["📖 Book Page", "🔲 Single Puzzle", "🎯 Single Solution", "📑 Solution Page"],
                         horizontal=True,
                         label_visibility="collapsed",
                         key="sdk_view_mode_rad",
                     )
 
-                if sdk_view_mode == "📑 Solution Page (Book)":
+                if sdk_view_mode == "📖 Book Page":
+                    total_sdk_book_pages = max(1, math.ceil(len(sudoku_puzzles) / sdk_puzzles_per_page))
+                    with sp_nav1:
+                        if "sdk_curr_book_page" not in st.session_state or st.session_state["sdk_curr_book_page"] > total_sdk_book_pages:
+                            st.session_state["sdk_curr_book_page"] = 1
+                        c_sbp_p, c_sbp_s, c_sbp_n = st.columns([0.18, 0.64, 0.18], gap="small")
+                        with c_sbp_p:
+                            if st.button("◀", key="sdk_book_prev_btn", disabled=(st.session_state["sdk_curr_book_page"] <= 1), help="Previous Book Page"):
+                                st.session_state["sdk_curr_book_page"] = max(1, st.session_state["sdk_curr_book_page"] - 1)
+                                st.rerun()
+                        with c_sbp_n:
+                            if st.button("▶", key="sdk_book_next_btn", disabled=(st.session_state["sdk_curr_book_page"] >= total_sdk_book_pages), help="Next Book Page"):
+                                st.session_state["sdk_curr_book_page"] = min(total_sdk_book_pages, st.session_state["sdk_curr_book_page"] + 1)
+                                st.rerun()
+                        with c_sbp_s:
+                            sdk_book_page_idx = st.selectbox(
+                                "Book Page",
+                                range(1, total_sdk_book_pages + 1),
+                                index=st.session_state["sdk_curr_book_page"] - 1,
+                                format_func=lambda x: f"Page {x}/{total_sdk_book_pages} ({sdk_puzzles_per_page} Games)",
+                                label_visibility="collapsed",
+                                key="sdk_book_page_sel",
+                            )
+                            st.session_state["sdk_curr_book_page"] = sdk_book_page_idx
+
+                    start_i = (sdk_book_page_idx - 1) * sdk_puzzles_per_page
+                    end_i = start_i + sdk_puzzles_per_page
+                    puz_slice = sudoku_puzzles[start_i:end_i]
+                    page_img = render_sudoku_puzzle_page_image(
+                        puz_slice,
+                        active_sudoku_style,
+                        puzzles_per_page=sdk_puzzles_per_page,
+                        page_num=sdk_book_page_idx,
+                        total_pages=total_sdk_book_pages,
+                        dpi=160,
+                        include_instructions=sdk_include_instructions,
+                    )
+                    st.image(page_img, width="stretch")
+                    st.caption(
+                        f"📖 Book Interior Page Preview: showing {len(puz_slice)} of {sdk_puzzles_per_page} game(s) per page (KDP print layout)."
+                    )
+
+                elif sdk_view_mode == "📑 Solution Page":
                     total_sdk_sol_pages = max(1, math.ceil(len(sudoku_puzzles) / sdk_solutions_per_page))
                     with sp_nav1:
                         if "sdk_curr_sol_page" not in st.session_state or st.session_state["sdk_curr_sol_page"] > total_sdk_sol_pages:
@@ -2261,11 +2313,11 @@ with tab_sudoku:
                 st.markdown('<div class="section-title">Export Sudoku Bundle</div>', unsafe_allow_html=True)
                 if sdk_include_sol_in_same_excel:
                     st.caption(
-                        f"Book Trim: {sdk_trim_choice.split(' ')[0]} · Solutions in Canva Bulk · 300 DPI print-ready"
+                        f"Book Trim: {sdk_trim_choice.split(' ')[0]} · {sdk_puzzles_per_page} game(s)/page · Solutions in Canva Bulk · 300 DPI print-ready"
                     )
                 else:
                     st.caption(
-                        f"Book Trim: {sdk_trim_choice.split(' ')[0]} · {sdk_solutions_per_page} solutions/page · 300 DPI print-ready"
+                        f"Book Trim: {sdk_trim_choice.split(' ')[0]} · {sdk_puzzles_per_page} game(s)/page · {sdk_solutions_per_page} solutions/page · 300 DPI print-ready"
                     )
 
                 if st.button("Generate Sudoku Bundle", type="primary", width="stretch", key="sdk_gen_btn"):
@@ -2275,6 +2327,7 @@ with tab_sudoku:
                     canva_p, sol_p, zip_p, pdf_bytes = build_sudoku_workbooks(
                         sudoku_puzzles,
                         out_dir_sdk,
+                        puzzles_per_page=sdk_puzzles_per_page,
                         solutions_per_page=sdk_solutions_per_page,
                         style=active_sudoku_style,
                         trim_choice=sdk_trim_choice,
@@ -2337,6 +2390,9 @@ with tab_sudoku:
                         import random
                         st.session_state["sdk_start_num_in"] = int(sdk_start_num + sdk_count)
                         st.session_state["sdk_seed_val"] = random.randint(10000, 999999)
+                        st.session_state["sdk_curr_book_page"] = 1
+                        st.session_state["sdk_curr_sol_page"] = 1
+                        st.session_state["sdk_curr_puz_idx"] = 1
                         for k in ["sdk_canva_bytes", "sdk_sol_bytes", "sdk_zip_bytes", "sdk_pdf_bytes"]:
                             st.session_state.pop(k, None)
                         st.rerun()
