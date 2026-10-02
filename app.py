@@ -1619,6 +1619,22 @@ with tab_sudoku:
         val = int(st.session_state.get("sdk_exact_custom_count_in", 12))
         st.session_state["sdk_count_slider"] = val
 
+    if "sdk_target_year_in" not in st.session_state:
+        st.session_state["sdk_target_year_in"] = 2026
+
+    def _set_sdk_year(yr: int):
+        st.session_state["sdk_target_year_in"] = yr
+
+    def _sync_volume_to_year(yr: int):
+        import calendar
+        days = 366 if calendar.isleap(yr) else 365
+        st.session_state["sdk_count_slider"] = days
+        st.session_state["sdk_exact_custom_count_in"] = days
+
+    def _sync_volume_to_12_months():
+        st.session_state["sdk_count_slider"] = 12
+        st.session_state["sdk_exact_custom_count_in"] = 12
+
     def _sdk_shuffle_seed():
         import random
         new_seed = random.randint(10000, 999999)
@@ -1779,8 +1795,12 @@ with tab_sudoku:
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # Tabs for Batch Volume & Visual Styling
-        sdk_tab_vol, sdk_tab_style = st.tabs(["📚 Book Volume & Count", "🎨 Style & Audience"])
+        # Tabs for Volume & Layout, Date & Calendar, and Visual Styling
+        sdk_tab_vol, sdk_tab_date, sdk_tab_style = st.tabs([
+            "📚 Volume & Layout",
+            "📅 Date & Calendar",
+            "🎨 Visual Styling",
+        ])
 
         with sdk_tab_vol:
             st.markdown(
@@ -1872,17 +1892,68 @@ with tab_sudoku:
                     )
 
             st.markdown(
+                '<div class="panel-step" style="margin-top:0.8rem">Interior Page & Solution Specs</div><div class="section-title">📐 KDP Page Layout & Dimensions</div>',
+                unsafe_allow_html=True,
+            )
+            c_kd1, c_kd2, c_kd3 = st.columns([1, 1, 1], gap="small")
+            with c_kd1:
+                sdk_trim_choice = st.selectbox(
+                    "KDP Book Trim Size",
+                    list(TRIM_SIZES.keys()),
+                    index=0,
+                    key="sdk_trim_sel",
+                    help="Standard 8.5x11 inch activity book or 6x9 pocket puzzle book.",
+                )
+            with c_kd2:
+                sdk_puzzles_per_page = st.selectbox(
+                    "Games Per Page",
+                    [1, 2, 4, 6],
+                    index=0,
+                    key="sdk_puz_per_page_sel",
+                    help="Select how many Sudoku puzzle games to place on each interior book page (1, 2, 4, or 6).",
+                )
+            with c_kd3:
+                sdk_include_sol_in_same_excel = st.checkbox(
+                    "Solutions on Same Excel",
+                    value=True,
+                    key="sdk_sol_in_same_excel_chk",
+                    help="When checked, both puzzle and solution image paths are included in the same Canva Bulk Excel row.",
+                )
+                sdk_solutions_per_page = st.selectbox(
+                    "Solutions Per Page",
+                    [1, 2, 4, 6, 9],
+                    index=3,
+                    disabled=sdk_include_sol_in_same_excel,
+                    key="sdk_sol_per_page_sel",
+                    help="1, 2, 4, 6, or 9 per page saves book page count in KDP solutions section or separate workbook.",
+                )
+
+            c_tg1, c_tg2 = st.columns(2, gap="small")
+            with c_tg1:
+                sdk_include_instructions = st.toggle(
+                    "Include instructions on puzzle pages", value=True, key="sdk_inst_tog"
+                )
+            with c_tg2:
+                sdk_embed_header_in_img = st.toggle(
+                    "Embed title inside image",
+                    value=False,
+                    key="sdk_header_in_img_tog",
+                    help="Keep off for Canva Bulk (Canva provides text boxes). Turn on for standalone PNG printing.",
+                )
+
+            total_interior_pages = max(1, math.ceil(sdk_count / sdk_puzzles_per_page))
+            st.markdown(
                 f"""
-            <div class="card" style="margin-top:2px; padding:8px 12px; border-left: 3px solid #285b4a;">
+            <div class="card" style="margin-top:8px; padding:10px 14px; border-left: 3px solid #285b4a; background:#fbfdfc;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <span class="smallcaps">📚 Book Volume Summary</span>
                     <span style="font-size:0.75rem; font-weight:700; color:#285b4a;">Seed #{sdk_seed} · Fresh Book</span>
                 </div>
-                <div style="font-size:0.86rem; font-weight:700; color:#14251f; margin-top:2px;">
-                    {sdk_count} Puzzles (Page #{sdk_start_num} to #{sdk_start_num + sdk_count - 1})
+                <div style="font-size:0.88rem; font-weight:700; color:#14251f; margin-top:3px;">
+                    {sdk_count} Puzzles · {sdk_puzzles_per_page} Game(s)/Page ({total_interior_pages} Interior Pages)
                 </div>
                 <div style="color:#56675f; font-size:0.75rem; margin-top:2px;">
-                    Title: <i>{sdk_title_template.replace('{num}', str(sdk_start_num)).replace('{diff}', DIFFICULTY_LABELS[selected_difficulty])}</i> · 100% Unique Solutions
+                    Trim: {sdk_trim_choice} · Page #{sdk_start_num} to #{sdk_start_num + sdk_count - 1} · 100% Unique Solutions
                 </div>
             </div>
             """,
@@ -2130,134 +2201,224 @@ with tab_sudoku:
                     inv_sm_mode = {v: k for k, v in sol_mode_map.items()}
                     st.session_state["s_solution_mode"] = inv_sm_mode[picked_sm_label]
 
-            with st.expander("KDP Book & Solutions Layout", expanded=False):
-                sdk_include_sol_in_same_excel = st.checkbox(
-                    "Include solution on the same Excel with the game",
-                    value=True,
-                    key="sdk_sol_in_same_excel_chk",
-                    help="When checked, both puzzle and solution image paths are included in the same Canva Bulk Excel row. When unchecked, solutions are exported to a separate workbook.",
+        with sdk_tab_date:
+            st.markdown(
+                '<div class="panel-step">Year & Daily Calendar System</div><div class="section-title">📅 Date & Calendar Integration</div>',
+                unsafe_allow_html=True,
+            )
+
+            sdk_enable_date = st.toggle(
+                "Enable Date / Calendar Stamping",
+                value=st.session_state.get("sdk_enable_date_chk", False),
+                key="sdk_enable_date_chk",
+                help="Automatically stamps each Sudoku puzzle with its calendar date or mini month calendar card.",
+            )
+
+            if not sdk_enable_date:
+                st.markdown(
+                    """
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; margin-top:10px; color:#475569;">
+                        <div style="font-weight:700; font-size:0.92rem; color:#1e293b; margin-bottom:4px;">✨ Create "A Puzzle A Day" 365-Day or 12-Month Books</div>
+                        <div style="font-size:0.80rem; line-height:1.45;">Turn on the toggle above to stamp your Sudoku puzzles with dates (e.g. <i>27-September</i>, <i>27-sept-2026</i>, <i>9-27-2026</i>) or crisp 300 DPI mini month calendar cards with highlighted day badges. Ideal for daily puzzle books, gift calendars, and KDP volume series.</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                sdk_date_mode = "📝 Formatted Date Text"
+                sdk_start_date = datetime.date(2026, 1, 1)
+                sdk_date_fmt = "27-September"
+                sdk_cal_prog = "daily"
+                sdk_cal_theme = "Modern Emerald"
+                sdk_cal_sunday = True
+                sdk_cal_border = True
+                selected_year = 2026
+            else:
+                st.markdown('<div class="panel-step" style="margin-top:0.4rem">Step A · Year & Schedule Scope</div>', unsafe_allow_html=True)
+
+                # Year Selection
+                c_yr_chips, c_yr_in = st.columns([1.2, 0.8], gap="small")
+                with c_yr_chips:
+                    st.caption("Quick Year Selection:")
+                    y_btn_cols = st.columns(4, gap="small")
+                    for idx_y, yr_val in enumerate([2025, 2026, 2027, 2028]):
+                        with y_btn_cols[idx_y]:
+                            st.button(
+                                str(yr_val),
+                                key=f"sdk_yr_chip_{yr_val}",
+                                width="stretch",
+                                on_click=_set_sdk_year,
+                                args=(yr_val,),
+                                help=f"Set target year to {yr_val}",
+                            )
+                with c_yr_in:
+                    selected_year = st.number_input(
+                        "Target Year",
+                        min_value=2020,
+                        max_value=2050,
+                        step=1,
+                        key="sdk_target_year_in",
+                        help="The calendar year for your puzzle book (e.g. 2026 or 2027).",
+                    )
+
+                sdk_sched_mode = st.radio(
+                    "Calendar Schedule Scope",
+                    [
+                        "🌟 Full Year 365 Days (Jan 1 – Dec 31)",
+                        "🗓️ 12-Month Calendar (1 Month per Game)",
+                        "🎯 Custom Starting Date",
+                    ],
+                    key="sdk_sched_mode_rad",
+                    help="Choose whether games span a full 365-day calendar year, 12 monthly games, or start on a custom date.",
                 )
 
-                c_kd1, c_kd2, c_kd3 = st.columns([1, 1, 1], gap="small")
-                with c_kd1:
-                    sdk_trim_choice = st.selectbox(
-                        "KDP Book Trim Size",
-                        list(TRIM_SIZES.keys()),
-                        index=0,
-                        key="sdk_trim_sel",
-                        help="Standard 8.5x11 inch activity book or 6x9 pocket puzzle book.",
-                    )
-                with c_kd2:
-                    sdk_puzzles_per_page = st.selectbox(
-                        "Games Per Page",
-                        [1, 2, 4, 6],
-                        index=0,
-                        key="sdk_puz_per_page_sel",
-                        help="Select how many Sudoku puzzle games to place on each interior book page (1, 2, 4, or 6).",
-                    )
-                with c_kd3:
-                    sdk_solutions_per_page = st.selectbox(
-                        "Solutions Per Page",
-                        [1, 2, 4, 6, 9],
-                        index=3,
-                        disabled=sdk_include_sol_in_same_excel,
-                        key="sdk_sol_per_page_sel",
-                        help="1, 2, 4, 6, or 9 per page saves book page count in KDP solutions section or separate workbook.",
-                    )
+                import calendar
+                is_leap = calendar.isleap(selected_year)
+                days_in_selected_year = 366 if is_leap else 365
 
-                c_tg1, c_tg2 = st.columns(2, gap="small")
-                with c_tg1:
-                    sdk_include_instructions = st.toggle(
-                        "Include instructions on puzzle pages", value=True, key="sdk_inst_tog"
+                if sdk_sched_mode.startswith("🌟 Full Year"):
+                    sdk_start_date = datetime.date(selected_year, 1, 1)
+                    sdk_cal_prog = "daily"
+                    st.markdown(
+                        f"""
+                        <div style="background:#eef8f2; border:1px solid #c3e6cb; border-radius:8px; padding:8px 12px; margin-top:4px; font-size:0.80rem; color:#155724;">
+                            📅 <b>Full Year {selected_year}</b>: Jan 1 ➔ Dec 31 ({days_in_selected_year} daily consecutive games).
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
                     )
-                with c_tg2:
-                    sdk_embed_header_in_img = st.toggle(
-                        "Embed title inside image",
-                        value=False,
-                        key="sdk_header_in_img_tog",
-                        help="Keep off for Canva Bulk (Canva provides text boxes). Turn on for standalone PNG printing.",
+                    st.button(
+                        f"⚡ Sync Volume: Set Book to {days_in_selected_year} Puzzles ({selected_year} Full Year)",
+                        key="sdk_sync_full_yr_btn",
+                        width="stretch",
+                        on_click=_sync_volume_to_year,
+                        args=(selected_year,),
+                        help="Sets puzzle count to 365 (or 366) to match the full year.",
                     )
-
-            with st.expander("📅 Date & Calendar Integration", expanded=False):
-                sdk_enable_date = st.checkbox(
-                    "Insert date or calendar with each game",
-                    value=False,
-                    key="sdk_enable_date_chk",
-                    help="Automatically stamps each Sudoku puzzle with a calendar date or mini month calendar card.",
-                )
-                if sdk_enable_date:
-                    c_dm1, c_dm2 = st.columns(2, gap="small")
-                    with c_dm1:
-                        sdk_date_mode = st.radio(
-                            "Display Type",
-                            ["📝 Formatted Date Text", "🗓️ Mini Month Calendar (Image)"],
-                            key="sdk_date_mode_rad",
-                            help="Date text adds formatted text to titles and Canva Excel; Calendar image generates 300 DPI mini month calendar cards.",
-                        )
-                    with c_dm2:
-                        sdk_start_date = st.date_input(
-                            "Start Date",
-                            value=datetime.date(2026, 1, 1),
-                            key="sdk_start_date_in",
-                            help="Starting date for the first puzzle in this volume.",
-                        )
-
-                    if sdk_date_mode == "📝 Formatted Date Text":
-                        sdk_date_fmt = st.selectbox(
-                            "Date Format Preset",
-                            DATE_FORMAT_PRESETS,
-                            index=0,
-                            key="sdk_date_fmt_sel",
-                            help="Select how dates should be formatted (e.g. 27-September, 27-sept-2026, 9-27-2026).",
-                        )
-                        sdk_cal_prog = "Daily (Highlight day)"
-                        sdk_cal_theme = "Modern Emerald"
-                        sdk_cal_sunday = True
-                    else:
-                        c_c1, c_c2 = st.columns(2, gap="small")
-                        with c_c1:
-                            sdk_cal_prog = st.selectbox(
-                                "Calendar Progression",
-                                ["Daily (Highlight day)", "Monthly (Full month per game)"],
-                                index=0,
-                                key="sdk_cal_prog_sel",
-                            )
-                            sdk_cal_theme = st.selectbox(
-                                "Calendar Theme",
-                                list(CALENDAR_THEMES.keys()),
-                                index=0,
-                                key="sdk_cal_theme_sel",
-                            )
-                        with c_c2:
-                            sdk_cal_sunday = st.toggle(
-                                "Week starts on Sunday",
-                                value=True,
-                                key="sdk_cal_sun_tog",
-                                help="When on, calendar columns start on Sunday (S M T W T F S). When off, starts Monday.",
-                            )
-                            sdk_date_fmt = st.selectbox(
-                                "Date Label Format",
-                                DATE_FORMAT_PRESETS,
-                                index=0,
-                                key="sdk_date_fmt_sub_sel",
-                            )
+                elif sdk_sched_mode.startswith("🗓️ 12-Month"):
+                    sdk_start_date = datetime.date(selected_year, 1, 1)
+                    sdk_cal_prog = "monthly"
+                    st.markdown(
+                        f"""
+                        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:8px 12px; margin-top:4px; font-size:0.80rem; color:#1e40af;">
+                            🗓️ <b>12-Month Calendar {selected_year}</b>: 12 games (January through December).
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    st.button(
+                        f"⚡ Sync Volume: Set Book to 12 Puzzles (12 Months {selected_year})",
+                        key="sdk_sync_12m_btn",
+                        width="stretch",
+                        on_click=_sync_volume_to_12_months,
+                        help="Sets puzzle count to 12 to match 12 months.",
+                    )
                 else:
-                    sdk_date_mode = "📝 Formatted Date Text"
-                    sdk_start_date = datetime.date(2026, 1, 1)
-                    sdk_date_fmt = "27-September"
-                    sdk_cal_prog = "Daily (Highlight day)"
+                    c_cs1, c_cs2 = st.columns(2, gap="small")
+                    with c_cs1:
+                        sdk_start_date = st.date_input(
+                            "Starting Date",
+                            value=datetime.date(selected_year, 1, 1),
+                            key="sdk_custom_start_date_in",
+                            help="Starting calendar date for Puzzle #1.",
+                        )
+                    with c_cs2:
+                        p_choice = st.selectbox(
+                            "Progression",
+                            ["Daily (1 Day / Puzzle)", "Monthly (1 Month / Puzzle)"],
+                            key="sdk_custom_prog_sel",
+                        )
+                        sdk_cal_prog = "monthly" if "Monthly" in p_choice else "daily"
+
+                st.markdown('<div class="panel-step" style="margin-top:0.8rem">Step B · Display Style & Format</div>', unsafe_allow_html=True)
+                sdk_date_mode = st.radio(
+                    "Display Type",
+                    ["📝 Formatted Date Text", "🗓️ Mini Month Calendar Card (Image)"],
+                    key="sdk_date_mode_rad",
+                    help="Date text adds clean formatted date strings to headers and Canva Excel text column. Calendar image generates 300 DPI mini month cards with highlighted day badges.",
+                )
+
+                if sdk_date_mode == "📝 Formatted Date Text":
+                    preset_labels = [p.replace("2026", str(selected_year)) for p in DATE_FORMAT_PRESETS]
+                    picked_fmt_idx = st.selectbox(
+                        "Date Format Preset",
+                        range(len(DATE_FORMAT_PRESETS)),
+                        format_func=lambda i: preset_labels[i],
+                        key="sdk_date_fmt_idx_sel",
+                        help="Select how dates should be formatted.",
+                    )
+                    sdk_date_fmt = DATE_FORMAT_PRESETS[picked_fmt_idx]
                     sdk_cal_theme = "Modern Emerald"
                     sdk_cal_sunday = True
+                    sdk_cal_border = True
 
-            sdk_date_cfg = {
-                "enabled": sdk_enable_date,
-                "mode": "calendar_image" if sdk_date_mode.startswith("🗓️") else "text",
-                "start_date": sdk_start_date,
-                "format_choice": sdk_date_fmt,
-                "progression": "monthly" if "Monthly" in sdk_cal_prog else "daily",
-                "calendar_theme": sdk_cal_theme,
-                "first_day_sunday": sdk_cal_sunday,
-            }
+                    sample_txt = format_puzzle_date(sdk_start_date, sdk_date_fmt)
+                    st.markdown(
+                        f"""
+                        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 14px; margin-top:8px;">
+                            <span style="font-size:0.72rem; font-weight:700; color:#166534; text-transform:uppercase; letter-spacing:0.04em;">Live Sample Output (Game #1)</span>
+                            <div style="font-size:1.08rem; font-weight:700; color:#14532d; margin-top:2px;">{sample_txt}</div>
+                            <div style="font-size:0.72rem; color:#4b7c62; margin-top:3px;">In Canva Bulk: mapped to <code>date</code> (or <code>date_1..N</code>) text column</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    c_c1, c_c2 = st.columns(2, gap="small")
+                    with c_c1:
+                        sdk_cal_theme = st.selectbox(
+                            "Calendar Theme",
+                            list(CALENDAR_THEMES.keys()),
+                            index=0,
+                            key="sdk_cal_theme_sel",
+                        )
+                        sdk_cal_border = st.toggle(
+                            "Card Border Outline",
+                            value=True,
+                            key="sdk_cal_border_tog",
+                        )
+                    with c_c2:
+                        sdk_cal_sunday = st.toggle(
+                            "Week starts on Sunday",
+                            value=True,
+                            key="sdk_cal_sun_tog",
+                            help="When on, calendar columns start on Sunday (S M T W T F S). When off, starts Monday.",
+                        )
+                        preset_labels = [p.replace("2026", str(selected_year)) for p in DATE_FORMAT_PRESETS]
+                        picked_fmt_idx = st.selectbox(
+                            "Date Label Format",
+                            range(len(DATE_FORMAT_PRESETS)),
+                            format_func=lambda i: preset_labels[i],
+                            key="sdk_date_subfmt_idx_sel",
+                        )
+                        sdk_date_fmt = DATE_FORMAT_PRESETS[picked_fmt_idx]
+
+                    # Live Mini Calendar Preview Thumbnail
+                    sample_hl = sdk_start_date.day if sdk_cal_prog == "daily" else None
+                    sample_card_img = render_mini_month_calendar(
+                        year=selected_year,
+                        month=sdk_start_date.month,
+                        highlight_day=sample_hl,
+                        theme=sdk_cal_theme,
+                        first_day_sunday=sdk_cal_sunday,
+                        show_card_border=sdk_cal_border,
+                        width=380,
+                        height=300,
+                    )
+                    st.caption("🖼️ 300 DPI Mini Calendar Card Live Preview:")
+                    st.image(sample_card_img, width=220)
+
+        # Active Date Configuration Dictionary
+        sdk_date_cfg = {
+            "enabled": sdk_enable_date,
+            "mode": "calendar_image" if sdk_date_mode.startswith("🗓️") else "text",
+            "start_date": sdk_start_date,
+            "format_choice": sdk_date_fmt,
+            "progression": sdk_cal_prog,
+            "calendar_theme": sdk_cal_theme,
+            "first_day_sunday": sdk_cal_sunday,
+            "show_card_border": sdk_cal_border if 'sdk_cal_border' in locals() else True,
+            "year": selected_year,
+        }
 
     # Active Sudoku Style Object
     active_sudoku_style = SimpleNamespace(
