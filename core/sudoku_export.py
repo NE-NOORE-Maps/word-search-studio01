@@ -55,6 +55,8 @@ def build_sudoku_workbooks(
         cal_mode = date_config.get("mode", "text")
         theme = date_config.get("calendar_theme", "Modern Emerald")
         sunday_start = date_config.get("first_day_sunday", True)
+        border_outline = date_config.get("show_card_border", True)
+        cal_show_yr = date_config.get("show_year", True)
 
         for i in range(total):
             info = get_puzzle_date_info(i, s_date, progression=prog, format_choice=f_choice)
@@ -66,6 +68,8 @@ def build_sudoku_workbooks(
                     highlight_day=info["highlight_day"],
                     theme=theme,
                     first_day_sunday=sunday_start,
+                    show_card_border=border_outline,
+                    show_year=cal_show_yr,
                 )
                 cp = os.path.join(img_dir, f"page_{i+1:03d}_calendar.png")
                 cal_img.save(cp)

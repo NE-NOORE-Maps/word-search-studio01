@@ -2376,21 +2376,28 @@ with tab_sudoku:
                             value=True,
                             key="sdk_cal_border_tog",
                         )
+                        sdk_cal_show_year = st.toggle(
+                            "Show Year in Calendar Header",
+                            value=True,
+                            key="sdk_cal_show_yr_tog",
+                            help="When on, displays e.g. 'SEPTEMBER 2026'. When off, displays 'SEPTEMBER' (ideal for evergreen activity books).",
+                        )
                     with c_c2:
+                        preset_labels = [p.replace("2026", str(selected_year)) for p in DATE_FORMAT_PRESETS]
+                        picked_fmt_idx = st.selectbox(
+                            "Date Label Format (for Canva Text)",
+                            range(len(DATE_FORMAT_PRESETS)),
+                            format_func=lambda i: preset_labels[i],
+                            key="sdk_date_subfmt_idx_sel",
+                            help="Also populated in the Canva Bulk Excel text column alongside the calendar image.",
+                        )
+                        sdk_date_fmt = DATE_FORMAT_PRESETS[picked_fmt_idx]
                         sdk_cal_sunday = st.toggle(
                             "Week starts on Sunday",
                             value=True,
                             key="sdk_cal_sun_tog",
                             help="When on, calendar columns start on Sunday (S M T W T F S). When off, starts Monday.",
                         )
-                        preset_labels = [p.replace("2026", str(selected_year)) for p in DATE_FORMAT_PRESETS]
-                        picked_fmt_idx = st.selectbox(
-                            "Date Label Format",
-                            range(len(DATE_FORMAT_PRESETS)),
-                            format_func=lambda i: preset_labels[i],
-                            key="sdk_date_subfmt_idx_sel",
-                        )
-                        sdk_date_fmt = DATE_FORMAT_PRESETS[picked_fmt_idx]
 
                     # Live Mini Calendar Preview Thumbnail
                     sample_hl = sdk_start_date.day if sdk_cal_prog == "daily" else None
@@ -2401,6 +2408,7 @@ with tab_sudoku:
                         theme=sdk_cal_theme,
                         first_day_sunday=sdk_cal_sunday,
                         show_card_border=sdk_cal_border,
+                        show_year=sdk_cal_show_year,
                         width=380,
                         height=300,
                     )
@@ -2417,6 +2425,7 @@ with tab_sudoku:
             "calendar_theme": sdk_cal_theme,
             "first_day_sunday": sdk_cal_sunday,
             "show_card_border": sdk_cal_border if 'sdk_cal_border' in locals() else True,
+            "show_year": sdk_cal_show_year if 'sdk_cal_show_year' in locals() else True,
             "year": selected_year,
         }
 
@@ -2455,7 +2464,7 @@ with tab_sudoku:
         sdk_hash = hash(
             f"{selected_sudoku_type.value}_{selected_difficulty.value}_{sdk_count}_{sdk_start_num}_{sdk_seed}_"
             f"{symmetric_clues}_{wordoku_word_val}_{custom_clues_val}_{sdk_title_template}_{sdk_puzzles_per_page}_{sdk_solutions_per_page}_"
-            f"{sdk_enable_date}_{sdk_date_cfg['mode']}_{sdk_date_cfg['start_date']}_{sdk_date_cfg['format_choice']}_{sdk_date_cfg['progression']}_{sdk_date_cfg['calendar_theme']}_{sdk_date_cfg['first_day_sunday']}_"
+            f"{sdk_enable_date}_{sdk_date_cfg['mode']}_{sdk_date_cfg['start_date']}_{sdk_date_cfg['format_choice']}_{sdk_date_cfg['progression']}_{sdk_date_cfg['calendar_theme']}_{sdk_date_cfg['first_day_sunday']}_{sdk_date_cfg.get('show_card_border', True)}_{sdk_date_cfg.get('show_year', True)}_"
             f"{active_sudoku_style.cell_style}_{active_sudoku_style.outer_line_width}_{active_sudoku_style.block_line_width}_"
             f"{active_sudoku_style.inner_line_width}_{active_sudoku_style.grid_color}_{active_sudoku_style.shading_mode}_"
             f"{active_sudoku_style.font_scale}_{active_sudoku_style.clue_font}_{active_sudoku_style.solution_color}"
@@ -2536,6 +2545,8 @@ with tab_sudoku:
                                     highlight_day=info["highlight_day"],
                                     theme=sdk_date_cfg["calendar_theme"],
                                     first_day_sunday=sdk_date_cfg["first_day_sunday"],
+                                    show_card_border=sdk_date_cfg.get("show_card_border", True),
+                                    show_year=sdk_date_cfg.get("show_year", True),
                                 )
                                 slice_cals.append(c_img)
 

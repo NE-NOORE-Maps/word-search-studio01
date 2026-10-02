@@ -38,6 +38,7 @@ def _hex_to_rgb(hex_str: str, default: Tuple[int, int, int] = (0, 0, 0)) -> Tupl
 DATE_FORMAT_PRESETS = [
     "27-September",
     "27-september",
+    "September 27",
     "27-Sep-2026",
     "27-sept-2026",
     "9-27-2026",
@@ -113,6 +114,8 @@ def format_puzzle_date(d: datetime.date, fmt_choice: str) -> str:
         return f"{day}-{month_name}"
     elif fmt_choice == "27-september":
         return f"{day}-{month_name.lower()}"
+    elif fmt_choice == "September 27":
+        return f"{month_name} {day}"
     elif fmt_choice == "27-Sep-2026":
         return f"{day}-{month_abbr}-{year}"
     elif fmt_choice == "27-sept-2026":
@@ -172,6 +175,7 @@ def render_mini_month_calendar(
     theme: str = "Modern Emerald",
     first_day_sunday: bool = True,
     show_card_border: bool = True,
+    show_year: bool = True,
 ) -> Image.Image:
     """Render a clean, modern mini month calendar card image with optional highlighted day."""
     thm = CALENDAR_THEMES.get(theme, CALENDAR_THEMES["Modern Emerald"])
@@ -192,9 +196,9 @@ def render_mini_month_calendar(
 
     # Month title
     month_name = datetime.date(year, month, 1).strftime("%B").upper()
-    title_text = f"{month_name} {year}"
+    title_text = f"{month_name} {year}" if show_year else f"{month_name}"
 
-    f_title = ImageFont.truetype(_font_path("DejaVu Sans Bold"), int(height * 0.088))
+    f_title = ImageFont.truetype(_font_path("DejaVu Sans Bold"), int(height * (0.088 if show_year else 0.096)))
     f_dh = ImageFont.truetype(_font_path("DejaVu Sans Bold"), int(height * 0.065))
     f_num = ImageFont.truetype(_font_path("DejaVu Sans"), int(height * 0.070))
     f_num_bold = ImageFont.truetype(_font_path("DejaVu Sans Bold"), int(height * 0.072))

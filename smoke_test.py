@@ -445,6 +445,8 @@ date_cfg_img = {
     "progression": "daily",
     "cal_theme": "Minimalist Slate",
     "monday_first": True,
+    "show_year": False,
+    "show_card_border": True,
 }
 out_sdk_date_img = tempfile.mkdtemp(prefix="sdk_date_img_test_")
 canva_di, sol_di, zip_di, pdf_di = build_sudoku_workbooks(
@@ -456,7 +458,14 @@ canva_di, sol_di, zip_di, pdf_di = build_sudoku_workbooks(
 )
 assert os.path.exists(canva_di)
 assert os.path.exists(zip_di)
-print("ok Sudoku workbook & Canva export with mini calendar image mode passed")
+print("ok Sudoku workbook & Canva export with mini calendar image mode (show_year=False) passed")
+
+# 10h. Calendar show_year toggle and date preset September 27 verification
+cal_yr_true = render_mini_month_calendar(2026, 9, highlight_day=27, show_year=True)
+cal_yr_false = render_mini_month_calendar(2026, 9, highlight_day=27, show_year=False)
+assert cal_yr_true.size == cal_yr_false.size
+assert format_puzzle_date(datetime.date(2026, 9, 27), "September 27") == "September 27"
+print("ok Calendar show/hide year rendering & September 27 date format verified")
 
 print("ALL SMOKE TESTS PASSED SUCCESSFULLY!")
 
