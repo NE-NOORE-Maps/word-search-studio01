@@ -6,3 +6,4 @@ textColor = "#14251f"
 
 [client]
 toolbarMode = "minimal"
+showErrorDetails = true

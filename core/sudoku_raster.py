@@ -43,6 +43,15 @@ def _font_path(name: str) -> str:
     return os.path.join(_FONTS_DIR, "DejaVu Sans.ttf")
 
 
+__all__ = [
+    "SUDOKU_PRESETS",
+    "render_sudoku_image",
+    "render_sudoku_solution_image",
+    "render_sudoku_solution_page_image",
+    "render_sudoku_puzzle_page_image",
+    "sudoku_image_data_uri",
+]
+
 # Audience presets specifically designed for Sudoku publishing
 SUDOKU_PRESETS = {
     "👔 Adult Classic": {

@@ -17,14 +17,19 @@ import streamlit as st
 import streamlit.components.v1 as components
 from PIL import Image, ImageDraw, ImageFont
 
-ROOT = Path(__file__).resolve().parents[1]
-HERE = Path(__file__).resolve().parent
+import importlib
+import traceback
 
-# Ensure local word_search_studio modules take precedence
-if str(HERE) not in sys.path:
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent
+
+# Ensure local repository directory is always first in sys.path
+if sys.path[0] != str(HERE):
+    if str(HERE) in sys.path:
+        sys.path.remove(str(HERE))
     sys.path.insert(0, str(HERE))
 if str(ROOT) not in sys.path:
-    sys.path.insert(1, str(ROOT))
+    sys.path.append(str(ROOT))
 
 try:
     from engine.generator import generate_puzzle
@@ -57,21 +62,54 @@ from engine.sudoku import (
     generate_sudoku_puzzle,
     get_default_clues,
 )
-from core.sudoku_raster import (
-    SUDOKU_PRESETS,
-    render_sudoku_image,
-    render_sudoku_solution_image,
-    render_sudoku_solution_page_image,
-    render_sudoku_puzzle_page_image,
-)
-from core.sudoku_pdf import TRIM_SIZES
-from core.sudoku_export import build_sudoku_workbooks
-from core.calendar_builder import (
-    DATE_FORMAT_PRESETS,
-    CALENDAR_THEMES,
-    get_puzzle_date_info,
-    render_mini_month_calendar,
-)
+
+# Resilient import for core.sudoku_raster (handles Streamlit Cloud hot-reload caching)
+try:
+    from core.sudoku_raster import (
+        SUDOKU_PRESETS,
+        render_sudoku_image,
+        render_sudoku_solution_image,
+        render_sudoku_solution_page_image,
+        render_sudoku_puzzle_page_image,
+    )
+except ImportError:
+    if "core.sudoku_raster" in sys.modules:
+        try:
+            importlib.reload(sys.modules["core.sudoku_raster"])
+        except Exception:
+            pass
+    from core.sudoku_raster import (
+        SUDOKU_PRESETS,
+        render_sudoku_image,
+        render_sudoku_solution_image,
+        render_sudoku_solution_page_image,
+        render_sudoku_puzzle_page_image,
+    )
+
+try:
+    from core.sudoku_pdf import TRIM_SIZES
+    from core.sudoku_export import build_sudoku_workbooks
+    from core.calendar_builder import (
+        DATE_FORMAT_PRESETS,
+        CALENDAR_THEMES,
+        get_puzzle_date_info,
+        render_mini_month_calendar,
+    )
+except ImportError:
+    for _m in ["core.sudoku_pdf", "core.sudoku_export", "core.calendar_builder"]:
+        if _m in sys.modules:
+            try:
+                importlib.reload(sys.modules[_m])
+            except Exception:
+                pass
+    from core.sudoku_pdf import TRIM_SIZES
+    from core.sudoku_export import build_sudoku_workbooks
+    from core.calendar_builder import (
+        DATE_FORMAT_PRESETS,
+        CALENDAR_THEMES,
+        get_puzzle_date_info,
+        render_mini_month_calendar,
+    )
 
 st.set_page_config(
     page_title="KDP Activity Studio · Word Search & Sudoku",
