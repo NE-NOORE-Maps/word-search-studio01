@@ -1027,7 +1027,7 @@ with tab_ws:
                 ws_target_puzzles = st.number_input(
                     "Target Puzzles",
                     min_value=1,
-                    max_value=200,
+                    max_value=5000,
                     value=12,
                     step=1,
                     disabled=not ws_custom_count_enabled,
@@ -1646,7 +1646,7 @@ with tab_sudoku:
         st.session_state["sdk_start_num_in"] = 1
 
     def _set_sdk_count_preset(val: int):
-        st.session_state["sdk_count_slider"] = val
+        st.session_state["sdk_count_slider"] = min(val, 2000)
         st.session_state["sdk_exact_custom_count_in"] = val
 
     def _sync_sdk_count_from_slider():
@@ -1655,7 +1655,7 @@ with tab_sudoku:
 
     def _sync_sdk_count_from_num():
         val = int(st.session_state.get("sdk_exact_custom_count_in", 12))
-        st.session_state["sdk_count_slider"] = val
+        st.session_state["sdk_count_slider"] = min(val, 2000)
 
     if "sdk_target_year_in" not in st.session_state:
         st.session_state["sdk_target_year_in"] = 2026
@@ -1846,32 +1846,40 @@ with tab_sudoku:
                 unsafe_allow_html=True,
             )
 
-            # Custom count: slider + direct custom number input (up to 366 a-puzzle-a-day books)
+            # Custom count: slider + direct custom number input (up to 5000 puzzles / multi-year books)
             c_cnt_s1, c_cnt_s2 = st.columns([1.1, 0.9], gap="small")
             with c_cnt_s1:
                 st.slider(
-                    "Puzzles Slider (1–366)",
+                    "Puzzles Slider (1–2000)",
                     min_value=1,
-                    max_value=366,
+                    max_value=2000,
                     step=1,
                     key="sdk_count_slider",
                     on_change=_sync_sdk_count_from_slider,
-                    help="Quick slider for standard book batches (up to 365/366 a-puzzle-a-day books).",
+                    help="Quick slider for standard book batches (up to 2000 puzzles).",
                 )
             with c_cnt_s2:
                 sdk_count = st.number_input(
                     "Exact Custom Count",
                     min_value=1,
-                    max_value=366,
+                    max_value=5000,
                     step=1,
                     key="sdk_exact_custom_count_in",
                     on_change=_sync_sdk_count_from_num,
-                    help="Type any custom number of puzzles up to 365 / 366 (Full year / Leap year books).",
+                    help="Type any custom number of puzzles up to 5000 (e.g. 1460 for 4/day full year books).",
                 )
 
             # Quick Preset Chips
-            q_cols = st.columns(5, gap="small")
-            presets = [(12, "12"), (50, "50"), (100, "100"), (200, "200"), (365, "365 🌟")]
+            q_cols = st.columns(7, gap="small")
+            presets = [
+                (12, "12"),
+                (50, "50"),
+                (100, "100"),
+                (200, "200"),
+                (365, "365 (1/D)"),
+                (730, "730 (2/D)"),
+                (1460, "1460 (4/D) 🌟"),
+            ]
             for idx_p, (cnt_val, lbl_val) in enumerate(presets):
                 with q_cols[idx_p]:
                     st.button(

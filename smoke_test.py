@@ -467,6 +467,15 @@ assert cal_yr_true.size == cal_yr_false.size
 assert format_puzzle_date(datetime.date(2026, 9, 27), "September 27") == "September 27"
 print("ok Calendar show/hide year rendering & September 27 date format verified")
 
+# 11. Large Volume 1460-Puzzle Verification (4 puzzles/day = 365 pages)
+total_1460_puzzles = 1460
+puz_per_page = 4
+total_pages = (total_1460_puzzles + puz_per_page - 1) // puz_per_page
+assert total_pages == 365, f"Expected 365 pages for 1460 puzzles at 4/page, got {total_pages}"
+d1459 = get_puzzle_date_info(1459, datetime.date(2026, 1, 1), progression="daily")
+assert d1459["year"] == 2029
+print(f"ok 1460-puzzle volume calculation verified: 1460 puzzles / 4 per page = {total_pages} pages")
+
 print("ALL SMOKE TESTS PASSED SUCCESSFULLY!")
 
 
