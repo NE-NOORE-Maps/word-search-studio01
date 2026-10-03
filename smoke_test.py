@@ -1,5 +1,6 @@
 import os
 import sys
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -475,6 +476,23 @@ assert total_pages == 365, f"Expected 365 pages for 1460 puzzles at 4/page, got 
 d1459 = get_puzzle_date_info(1459, datetime.date(2026, 1, 1), progression="daily")
 assert d1459["year"] == 2029
 print(f"ok 1460-puzzle volume calculation verified: 1460 puzzles / 4 per page = {total_pages} pages")
+
+# 12. Canva Bulk Batch Splitting Verification (Split into ordered ZIP)
+out_sdk_batch = tempfile.mkdtemp(prefix="sdk_batch_test_")
+canva_batch_p, _, _, _ = build_sudoku_workbooks(
+    test_puzzles[:6],
+    out_sdk_batch,
+    puzzles_per_page=1,
+    canva_batch_size=2,
+)
+assert canva_batch_p.endswith(".zip"), f"Expected .zip, got {canva_batch_p}"
+with zipfile.ZipFile(canva_batch_p) as z:
+    batch_names = z.namelist()
+    assert "CANVA_BULK_CREATE_INSTRUCTIONS.txt" in batch_names
+    assert any("batch_01" in n for n in batch_names)
+    assert any("batch_02" in n for n in batch_names)
+    assert any("batch_03" in n for n in batch_names)
+print(f"ok Canva batch splitting verified: {len(batch_names)-1} batches generated and zipped with instructions")
 
 print("ALL SMOKE TESTS PASSED SUCCESSFULLY!")
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
 import xlsxwriter
-from core.canva_bulk import write_bulk_excel
+from core.canva_bulk import get_canva_instructions_text, package_canva_batches_zip, write_bulk_excel
 from core.sudoku_raster import render_sudoku_image, render_sudoku_solution_image
 from core.sudoku_pdf import build_sudoku_pdf
 from engine.sudoku import SudokuPuzzle
@@ -25,6 +25,7 @@ def build_sudoku_workbooks(
     include_solution_in_same_excel: bool = True,
     date_config: Optional[dict] = None,
     progress_bar: Optional[Any] = None,
+    canva_batch_size: int = 100,
 ) -> Tuple[str, Optional[str], str, bytes]:
     """Render all 300 DPI Sudoku images, create Canva Excel, Solutions Excel, KDP PDF, and ZIP bundle.
 
@@ -183,8 +184,16 @@ def build_sudoku_workbooks(
             page_idx += 1
 
     canva_path = os.path.join(out_dir, "sudoku_canva_bulk.xlsx")
-    canva_files = write_bulk_excel(canva_path, rows, text_columns, image_columns, max_rows=0)
-    canva_path = canva_files[0]
+    canva_files = write_bulk_excel(canva_path, rows, text_columns, image_columns, max_rows=canva_batch_size)
+    if len(canva_files) > 1:
+        instructions = get_canva_instructions_text(
+            len(canva_files), len(rows), canva_batch_size, title="Sudoku Activity Book"
+        )
+        canva_zip_path = os.path.join(out_dir, "sudoku_canva_bulk_batches.zip")
+        package_canva_batches_zip(canva_files, canva_zip_path, instructions)
+        canva_output_path = canva_zip_path
+    else:
+        canva_output_path = canva_files[0]
 
     solutions_path = None
     if not include_solution_in_same_excel:
@@ -255,7 +264,12 @@ def build_sudoku_workbooks(
 
     zip_path = os.path.join(out_dir, "sudoku_complete_bundle.zip")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        z.write(canva_path, os.path.basename(canva_path))
+        if len(canva_files) > 1:
+            for cf in canva_files:
+                z.write(cf, f"canva_batches/{os.path.basename(cf)}")
+            z.write(canva_output_path, os.path.basename(canva_output_path))
+        else:
+            z.write(canva_output_path, os.path.basename(canva_output_path))
         if solutions_path:
             z.write(solutions_path, os.path.basename(solutions_path))
         z.write(pdf_path, os.path.basename(pdf_path))
@@ -265,4 +279,4 @@ def build_sudoku_workbooks(
     if progress_bar:
         progress_bar.progress(100, text="Export complete!")
 
-    return canva_path, solutions_path, zip_path, pdf_bytes
+    return canva_output_path, solutions_path, zip_path, pdf_bytes

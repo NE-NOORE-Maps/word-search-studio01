@@ -48,7 +48,7 @@ except ModuleNotFoundError:
         render_word_search_solution_page_image,
     )
 
-from core.canva_bulk import write_bulk_excel
+from core.canva_bulk import get_canva_instructions_text, package_canva_batches_zip, write_bulk_excel
 from engine.sudoku import (
     DEFAULT_WORDOKU_WORDS,
     DIFFICULTY_LABELS,
@@ -773,6 +773,7 @@ def build_workbooks(
     include_solution_in_bulk=False,
     progress_bar=None,
     style=None,
+    canva_batch_size=100,
 ):
     import xlsxwriter
 
@@ -808,8 +809,16 @@ def build_workbooks(
             row[f"word_{j}"] = word
         rows.append(row)
     canva_path = os.path.join(out_dir, "word_search_canva_bulk.xlsx")
-    canva_files = write_bulk_excel(canva_path, rows, text_columns, image_columns, max_rows=0)
-    canva_path = canva_files[0]
+    canva_files = write_bulk_excel(canva_path, rows, text_columns, image_columns, max_rows=canva_batch_size)
+    if len(canva_files) > 1:
+        instructions = get_canva_instructions_text(
+            len(canva_files), len(rows), canva_batch_size, title="Word Search Activity Book"
+        )
+        canva_zip_path = os.path.join(out_dir, "word_search_canva_bulk_batches.zip")
+        package_canva_batches_zip(canva_files, canva_zip_path, instructions)
+        canva_path = canva_zip_path
+    else:
+        canva_path = canva_files[0]
 
     solutions_path = None
     if not include_solution_in_bulk:
@@ -852,7 +861,12 @@ def build_workbooks(
         progress_bar.progress(95, text="Creating ZIP bundle...")
     zip_path = os.path.join(out_dir, "word_search_canva_export.zip")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        z.write(canva_path, os.path.basename(canva_path))
+        if len(canva_files) > 1:
+            for cf in canva_files:
+                z.write(cf, f"canva_batches/{os.path.basename(cf)}")
+            z.write(canva_path, os.path.basename(canva_path))
+        else:
+            z.write(canva_path, os.path.basename(canva_path))
         if solutions_path:
             z.write(solutions_path, os.path.basename(solutions_path))
         for p in grid_paths + sol_paths:
@@ -1530,6 +1544,22 @@ with tab_ws:
                     else:
                         st.caption(f"Solutions: {solutions_per_page} per page (separate workbook)")
 
+                    ws_batch_choice = st.selectbox(
+                        "Canva Batch Split (Pages/Batch)",
+                        ["100 Pages (Canva Limit - Rec.)", "50 Pages", "200 Pages", "No Split (Single File)"],
+                        index=0,
+                        key="ws_canva_batch_sel",
+                        help="Canva Bulk Create has a 100-page limit per design. Splitting generates ordered batches packaged in a ZIP.",
+                    )
+                    ws_batch_size = (
+                        100
+                        if "100" in ws_batch_choice
+                        else (50 if "50" in ws_batch_choice else (200 if "200" in ws_batch_choice else 0))
+                    )
+                    if ws_batch_size > 0 and len(puzzles) > ws_batch_size:
+                        n_b = math.ceil(len(puzzles) / ws_batch_size)
+                        st.caption(f"⚡ {len(puzzles)} pages will be split into {n_b} ordered batches in a ZIP.")
+
                     if st.button("Generate Export Bundle", type="primary", width="stretch", key="ws_gen_btn"):
                         progress_bar = st.progress(0, text="Starting generation...")
                         out_dir = tempfile.mkdtemp(prefix="word_search_studio_")
@@ -1542,12 +1572,14 @@ with tab_ws:
                             include_solution_in_bulk=include_solution_in_bulk,
                             progress_bar=progress_bar,
                             style=current_style,
+                            canva_batch_size=ws_batch_size,
                         )
 
                         if progress_bar:
                             progress_bar.progress(100, text="Export bundle ready!")
 
                         st.session_state["canva_bytes"] = Path(canva_path).read_bytes()
+                        st.session_state["canva_is_zip"] = canva_path.endswith(".zip")
                         st.session_state["solutions_bytes"] = (
                             Path(solutions_path).read_bytes() if solutions_path else None
                         )
@@ -1556,11 +1588,15 @@ with tab_ws:
                         st.success("Export ready with custom grid styles!")
 
                     if "canva_bytes" in st.session_state:
+                        ws_is_zip = st.session_state.get("canva_is_zip", False)
+                        ws_canva_label = "📦 Canva Bulk Batches (ZIP)" if ws_is_zip else "📦 Canva Excel"
+                        ws_canva_name = "word_search_canva_bulk_batches.zip" if ws_is_zip else "word_search_canva_bulk.xlsx"
+                        ws_canva_mime = "application/zip" if ws_is_zip else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         st.download_button(
-                            "📦 Canva Excel",
+                            ws_canva_label,
                             st.session_state["canva_bytes"],
-                            "word_search_canva_bulk.xlsx",
-                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            ws_canva_name,
+                            ws_canva_mime,
                             width="stretch",
                             key="ws_down_canva",
                         )
@@ -2732,6 +2768,23 @@ with tab_sudoku:
                         f"Book Trim: {sdk_trim_choice.split(' ')[0]} · {sdk_puzzles_per_page} game(s)/page · {sdk_solutions_per_page} solutions/page{date_status} · 300 DPI print-ready"
                     )
 
+                sdk_batch_choice = st.selectbox(
+                    "Canva Batch Split (Pages/Batch)",
+                    ["100 Pages (Canva Limit - Rec.)", "50 Pages", "200 Pages", "No Split (Single File)"],
+                    index=0,
+                    key="sdk_canva_batch_sel",
+                    help="Canva Bulk Create has a 100-page limit per design. Splitting generates ordered batches packaged in a ZIP.",
+                )
+                sdk_batch_size = (
+                    100
+                    if "100" in sdk_batch_choice
+                    else (50 if "50" in sdk_batch_choice else (200 if "200" in sdk_batch_choice else 0))
+                )
+                total_sdk_pages = math.ceil(len(sudoku_puzzles) / sdk_puzzles_per_page)
+                if sdk_batch_size > 0 and total_sdk_pages > sdk_batch_size:
+                    n_b = math.ceil(total_sdk_pages / sdk_batch_size)
+                    st.caption(f"⚡ {total_sdk_pages} pages will be split into {n_b} ordered batches in a ZIP.")
+
                 if st.button("Generate Sudoku Bundle", type="primary", width="stretch", key="sdk_gen_btn"):
                     sdk_bar = st.progress(0, text="Generating Sudoku export bundle...")
                     out_dir_sdk = tempfile.mkdtemp(prefix="sudoku_studio_")
@@ -2747,9 +2800,11 @@ with tab_sudoku:
                         include_solution_in_same_excel=sdk_include_sol_in_same_excel,
                         date_config=sdk_date_cfg if sdk_enable_date else None,
                         progress_bar=sdk_bar,
+                        canva_batch_size=sdk_batch_size,
                     )
 
                     st.session_state["sdk_canva_bytes"] = Path(canva_p).read_bytes()
+                    st.session_state["sdk_canva_is_zip"] = canva_p.endswith(".zip")
                     st.session_state["sdk_sol_bytes"] = Path(sol_p).read_bytes() if sol_p else None
                     st.session_state["sdk_zip_bytes"] = Path(zip_p).read_bytes()
                     st.session_state["sdk_pdf_bytes"] = pdf_bytes
@@ -2758,16 +2813,21 @@ with tab_sudoku:
                     st.success("Sudoku export bundle ready!")
 
                 if "sdk_canva_bytes" in st.session_state:
+                    is_sdk_zip = st.session_state.get("sdk_canva_is_zip", False)
                     canva_label = (
-                        "📦 Canva Bulk Excel (Game + Solution)"
-                        if st.session_state.get("sdk_sol_in_same_excel", True)
-                        else "📦 Canva Bulk Excel"
+                        "📦 Canva Bulk Batches (ZIP)"
+                        if is_sdk_zip
+                        else (
+                            "📦 Canva Bulk Excel (Game + Solution)"
+                            if st.session_state.get("sdk_sol_in_same_excel", True)
+                            else "📦 Canva Bulk Excel"
+                        )
                     )
                     st.download_button(
                         canva_label,
                         st.session_state["sdk_canva_bytes"],
-                        "sudoku_canva_bulk.xlsx",
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "sudoku_canva_bulk_batches.zip" if is_sdk_zip else "sudoku_canva_bulk.xlsx",
+                        "application/zip" if is_sdk_zip else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         width="stretch",
                         key="sdk_down_canva",
                     )
