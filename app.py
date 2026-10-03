@@ -874,6 +874,61 @@ def build_workbooks(
     return canva_path, solutions_path, zip_path
 
 
+def get_base_word_chunks(groups_dict, words_per_page):
+    base_chunks = []
+    for theme, words in groups_dict.items():
+        cleaned = [w for w in words if len(w) >= 3]
+        chunks = [
+            cleaned[start : start + words_per_page]
+            for start in range(0, len(cleaned), words_per_page)
+            if cleaned[start : start + words_per_page]
+        ]
+        if len(chunks) > 1 and len(chunks[-1]) < words_per_page:
+            chunks = chunks[:-1]
+        for c in chunks:
+            base_chunks.append((theme, c))
+    return base_chunks
+
+
+@st.cache_data(show_spinner=False)
+def get_preview_wordsearch_slice(
+    groups_dict,
+    diff_str,
+    words_per_page,
+    seed_val,
+    grid_rows,
+    grid_cols,
+    fill_alphabet,
+    target_count,
+    start_index,
+    count,
+):
+    cfg = PuzzleConfig(
+        difficulty=Difficulty(diff_str),
+        words_per_page=words_per_page,
+        seed=int(seed_val),
+        grid_rows=grid_rows,
+        grid_cols=grid_cols,
+        fill_alphabet=fill_alphabet,
+    )
+    base_chunks = get_base_word_chunks(groups_dict, words_per_page)
+    if not base_chunks:
+        return []
+
+    total_needed = target_count if (target_count and target_count > 0) else len(base_chunks)
+    result = []
+    for offset in range(count):
+        idx = start_index + offset
+        if idx >= total_needed:
+            break
+        theme, chunk = base_chunks[idx % len(base_chunks)]
+        local = cfg.model_copy(deep=True)
+        local.seed = int(seed_val) + idx * 19
+        theme_title = theme if total_needed <= len(base_chunks) else f"{theme} #{idx + 1}"
+        result.append(generate_reliably(chunk, local, theme_title))
+    return result
+
+
 @st.cache_data(show_spinner=False)
 def get_puzzles(
     groups_dict,
@@ -893,19 +948,7 @@ def get_puzzles(
         grid_cols=grid_cols,
         fill_alphabet=fill_alphabet,
     )
-    base_chunks = []
-    for theme, words in groups_dict.items():
-        cleaned = [w for w in words if len(w) >= 3]
-        chunks = [
-            cleaned[start : start + words_per_page]
-            for start in range(0, len(cleaned), words_per_page)
-            if cleaned[start : start + words_per_page]
-        ]
-        if len(chunks) > 1 and len(chunks[-1]) < words_per_page:
-            chunks = chunks[:-1]
-        for c in chunks:
-            base_chunks.append((theme, c))
-
+    base_chunks = get_base_word_chunks(groups_dict, words_per_page)
     if not base_chunks:
         return []
 
@@ -1399,17 +1442,9 @@ with tab_ws:
     with ws_preview:
         st.markdown('<div class="studio-preview-marker"></div>', unsafe_allow_html=True)
         if groups:
+            base_chunks = get_base_word_chunks(dict(groups), words_per_page)
             target_puz_val = ws_target_puzzles if ws_custom_count_enabled else None
-            puzzles = get_puzzles(
-                dict(groups),
-                difficulty,
-                words_per_page,
-                seed,
-                grid_rows,
-                grid_cols,
-                active_fill_alphabet,
-                target_count=target_puz_val,
-            )
+            total_ws_puzzles = target_puz_val if (target_puz_val and target_puz_val > 0) else len(base_chunks)
 
             puz_hash = hash(
                 str(dict(groups))
@@ -1433,11 +1468,13 @@ with tab_ws:
                 for k in ["canva_bytes", "solutions_bytes", "zip_bytes"]:
                     st.session_state.pop(k, None)
 
-            if puzzles:
+            if total_ws_puzzles > 0 and base_chunks:
                 c1, c2, c3, c4, c5 = st.columns(5, gap="small")
-                c1.metric("Pages", len(puzzles))
+                c1.metric("Pages", total_ws_puzzles)
                 c2.metric("Language", f"{lang_cfg['flag']} {selected_language.split(' ')[0]}")
-                c3.metric("Grid Size", f"{puzzles[0].rows} × {puzzles[0].cols}")
+                actual_rows = grid_rows or (10 if difficulty == "easy" else (13 if difficulty == "medium" else 16))
+                actual_cols = grid_cols or actual_rows
+                c3.metric("Grid Size", f"{actual_rows} × {actual_cols}")
                 line_desc = (
                     "No Lines"
                     if current_style.grid_line_width == 0 or current_style.cell_style == "none"
@@ -1459,7 +1496,7 @@ with tab_ws:
                         )
 
                     if view_mode == "📑 Solution Page (Book)":
-                        total_sol_pages = max(1, math.ceil(len(puzzles) / solutions_per_page))
+                        total_sol_pages = max(1, math.ceil(total_ws_puzzles / solutions_per_page))
                         with top_p1:
                             if "ws_curr_sol_page" not in st.session_state or st.session_state["ws_curr_sol_page"] > total_sol_pages:
                                 st.session_state["ws_curr_sol_page"] = 1
@@ -1484,8 +1521,18 @@ with tab_ws:
                                 st.session_state["ws_curr_sol_page"] = sol_page_idx
 
                         start_i = (sol_page_idx - 1) * solutions_per_page
-                        end_i = start_i + solutions_per_page
-                        sol_slice = puzzles[start_i:end_i]
+                        sol_slice = get_preview_wordsearch_slice(
+                            dict(groups),
+                            difficulty,
+                            words_per_page,
+                            seed,
+                            grid_rows,
+                            grid_cols,
+                            active_fill_alphabet,
+                            total_ws_puzzles,
+                            start_i,
+                            solutions_per_page,
+                        )
                         page_img = render_word_search_solution_page_image(
                             sol_slice, current_style, solutions_per_page, sol_page_idx, total_sol_pages, dpi=160
                         )
@@ -1495,7 +1542,7 @@ with tab_ws:
                         )
                     else:
                         with top_p1:
-                            if "ws_curr_puz_idx" not in st.session_state or st.session_state["ws_curr_puz_idx"] > len(puzzles):
+                            if "ws_curr_puz_idx" not in st.session_state or st.session_state["ws_curr_puz_idx"] > total_ws_puzzles:
                                 st.session_state["ws_curr_puz_idx"] = 1
                             c_wp_p, c_wp_s, c_wp_n = st.columns([0.18, 0.64, 0.18], gap="small")
                             with c_wp_p:
@@ -1503,39 +1550,56 @@ with tab_ws:
                                     st.session_state["ws_curr_puz_idx"] = max(1, st.session_state["ws_curr_puz_idx"] - 1)
                                     st.rerun()
                             with c_wp_n:
-                                if st.button("▶", key="ws_puz_next_btn", disabled=(st.session_state["ws_curr_puz_idx"] >= len(puzzles)), help="Next Page"):
-                                    st.session_state["ws_curr_puz_idx"] = min(len(puzzles), st.session_state["ws_curr_puz_idx"] + 1)
+                                if st.button("▶", key="ws_puz_next_btn", disabled=(st.session_state["ws_curr_puz_idx"] >= total_ws_puzzles), help="Next Page"):
+                                    st.session_state["ws_curr_puz_idx"] = min(total_ws_puzzles, st.session_state["ws_curr_puz_idx"] + 1)
                                     st.rerun()
                             with c_wp_s:
+                                def _fmt_ws_page(x):
+                                    th = base_chunks[(x - 1) % len(base_chunks)][0]
+                                    return f"Page {x}: {th}"
                                 selected = st.selectbox(
                                     "Preview page",
-                                    range(1, len(puzzles) + 1),
+                                    range(1, total_ws_puzzles + 1),
                                     index=st.session_state["ws_curr_puz_idx"] - 1,
-                                    format_func=lambda x: f"Page {x}: {puzzles[x-1].theme}",
+                                    format_func=_fmt_ws_page,
                                     label_visibility="collapsed",
                                     key="ws_preview_page_sel",
                                 )
                                 st.session_state["ws_curr_puz_idx"] = selected
 
-                        st.image(
-                            render_png(
-                                puzzles[selected - 1],
-                                bank_columns,
-                                False,
-                                solution=(view_mode == "🎯 Single Solution"),
-                                compact=True,
-                                style=current_style,
-                            ),
-                            width="stretch",
+                        puz_slice = get_preview_wordsearch_slice(
+                            dict(groups),
+                            difficulty,
+                            words_per_page,
+                            seed,
+                            grid_rows,
+                            grid_cols,
+                            active_fill_alphabet,
+                            total_ws_puzzles,
+                            selected - 1,
+                            1,
                         )
-                        if show_bank:
-                            render_word_bank(
-                                puzzles[selected - 1].words,
-                                bank_columns,
-                                title=lang_cfg.get("word_bank_title", "Word bank"),
+                        active_puzzle = puz_slice[0] if puz_slice else None
+                        if active_puzzle:
+                            st.image(
+                                render_png(
+                                    active_puzzle,
+                                    bank_columns,
+                                    False,
+                                    solution=(view_mode == "🎯 Single Solution"),
+                                    compact=True,
+                                    style=current_style,
+                                ),
+                                width="stretch",
                             )
-                        if puzzles[selected - 1].skipped:
-                            st.warning("Some words could not be placed: " + ", ".join(puzzles[selected - 1].skipped))
+                            if show_bank:
+                                render_word_bank(
+                                    active_puzzle.words,
+                                    bank_columns,
+                                    title=lang_cfg.get("word_bank_title", "Word bank"),
+                                )
+                            if active_puzzle.skipped:
+                                st.warning("Some words could not be placed: " + ", ".join(active_puzzle.skipped))
 
                 with export_col:
                     st.markdown('<div class="section-title">Export Canva Bundle</div>', unsafe_allow_html=True)
@@ -1556,15 +1620,26 @@ with tab_ws:
                         if "100" in ws_batch_choice
                         else (50 if "50" in ws_batch_choice else (200 if "200" in ws_batch_choice else 0))
                     )
-                    if ws_batch_size > 0 and len(puzzles) > ws_batch_size:
-                        n_b = math.ceil(len(puzzles) / ws_batch_size)
-                        st.caption(f"⚡ {len(puzzles)} pages will be split into {n_b} ordered batches in a ZIP.")
+                    if ws_batch_size > 0 and total_ws_puzzles > ws_batch_size:
+                        n_b = math.ceil(total_ws_puzzles / ws_batch_size)
+                        st.caption(f"⚡ {total_ws_puzzles} pages will be split into {n_b} ordered batches in a ZIP.")
 
                     if st.button("Generate Export Bundle", type="primary", width="stretch", key="ws_gen_btn"):
-                        progress_bar = st.progress(0, text="Starting generation...")
+                        progress_bar = st.progress(0, text="Generating full puzzle collection...")
                         out_dir = tempfile.mkdtemp(prefix="word_search_studio_")
+                        with st.spinner(f"Generating all {total_ws_puzzles} Word Search puzzles..."):
+                            all_puzzles = get_puzzles(
+                                dict(groups),
+                                difficulty,
+                                words_per_page,
+                                seed,
+                                grid_rows,
+                                grid_cols,
+                                active_fill_alphabet,
+                                target_count=target_puz_val,
+                            )
                         canva_path, solutions_path, zip_path = build_workbooks(
-                            puzzles,
+                            all_puzzles,
                             out_dir,
                             show_bank,
                             bank_columns,
@@ -2529,18 +2604,9 @@ with tab_sudoku:
 
     with sdk_preview:
         st.markdown('<div class="studio-preview-marker"></div>', unsafe_allow_html=True)
-        # Generate batch of Sudoku puzzles
-        sudoku_puzzles = get_sudoku_batch(
-            selected_sudoku_type.value,
-            selected_difficulty.value,
-            sdk_count,
-            sdk_start_num,
-            sdk_seed,
-            symmetric_clues,
-            wordoku_word_val,
-            custom_clues_val,
-            sdk_title_template,
-        )
+        total_sdk_puzzles = sdk_count
+        total_sdk_book_pages = max(1, math.ceil(total_sdk_puzzles / sdk_puzzles_per_page))
+        total_sdk_sol_pages = max(1, math.ceil(total_sdk_puzzles / sdk_solutions_per_page))
 
         # Clear old export buffers on config change
         sdk_hash = hash(
@@ -2556,14 +2622,25 @@ with tab_sudoku:
             for k in ["sdk_canva_bytes", "sdk_sol_bytes", "sdk_zip_bytes", "sdk_pdf_bytes"]:
                 st.session_state.pop(k, None)
 
-        if sudoku_puzzles:
+        if total_sdk_puzzles > 0:
             # Metrics strip
+            sample_p = get_sudoku_batch(
+                selected_sudoku_type.value,
+                selected_difficulty.value,
+                1,
+                sdk_start_num,
+                sdk_seed,
+                symmetric_clues,
+                wordoku_word_val,
+                custom_clues_val,
+                sdk_title_template,
+            )
             sm1, sm2, sm3, sm4, sm5, sm6 = st.columns(6, gap="small")
-            sm1.metric("Puzzles", len(sudoku_puzzles))
+            sm1.metric("Puzzles", total_sdk_puzzles)
             sm2.metric("Type", TYPE_LABELS[selected_sudoku_type].split(" ")[0])
             sm3.metric("Difficulty", f"{DIFFICULTY_LABELS[selected_difficulty]} {stars}")
             sm4.metric("Grid Size", f"{dim_size} × {dim_size}")
-            sm5.metric("Clues / Board", f"{sudoku_puzzles[0].clues_count}")
+            sm5.metric("Clues / Board", f"{sample_p[0].clues_count}" if sample_p else "-")
             sm6.metric("Games/Page", f"{sdk_puzzles_per_page}")
 
             sdk_prev_col, sdk_exp_col = st.columns([1.55, 0.75], gap="small")
@@ -2580,7 +2657,6 @@ with tab_sudoku:
                     )
 
                 if sdk_view_mode == "📖 Book Page":
-                    total_sdk_book_pages = max(1, math.ceil(len(sudoku_puzzles) / sdk_puzzles_per_page))
                     with sp_nav1:
                         if "sdk_curr_book_page" not in st.session_state or st.session_state["sdk_curr_book_page"] > total_sdk_book_pages:
                             st.session_state["sdk_curr_book_page"] = 1
@@ -2605,14 +2681,24 @@ with tab_sudoku:
                             st.session_state["sdk_curr_book_page"] = sdk_book_page_idx
 
                     start_i = (sdk_book_page_idx - 1) * sdk_puzzles_per_page
-                    end_i = start_i + sdk_puzzles_per_page
-                    puz_slice = sudoku_puzzles[start_i:end_i]
+                    count_on_page = min(sdk_puzzles_per_page, total_sdk_puzzles - start_i)
+                    puz_slice = get_sudoku_batch(
+                        selected_sudoku_type.value,
+                        selected_difficulty.value,
+                        count_on_page,
+                        sdk_start_num + start_i,
+                        sdk_seed + start_i * 17,
+                        symmetric_clues,
+                        wordoku_word_val,
+                        custom_clues_val,
+                        sdk_title_template,
+                    )
 
                     # Slice dates & calendar images if date enabled
                     slice_dates = []
                     slice_cals = []
                     if sdk_enable_date:
-                        for p_idx in range(start_i, min(len(sudoku_puzzles), end_i)):
+                        for p_idx in range(start_i, start_i + count_on_page):
                             info = get_puzzle_date_info(
                                 p_idx,
                                 sdk_date_cfg["start_date"],
@@ -2649,7 +2735,6 @@ with tab_sudoku:
                     )
 
                 elif sdk_view_mode == "📑 Solution Page":
-                    total_sdk_sol_pages = max(1, math.ceil(len(sudoku_puzzles) / sdk_solutions_per_page))
                     with sp_nav1:
                         if "sdk_curr_sol_page" not in st.session_state or st.session_state["sdk_curr_sol_page"] > total_sdk_sol_pages:
                             st.session_state["sdk_curr_sol_page"] = 1
@@ -2674,8 +2759,18 @@ with tab_sudoku:
                             st.session_state["sdk_curr_sol_page"] = sdk_sol_page_idx
 
                     start_i = (sdk_sol_page_idx - 1) * sdk_solutions_per_page
-                    end_i = start_i + sdk_solutions_per_page
-                    sol_slice = sudoku_puzzles[start_i:end_i]
+                    count_on_sol = min(sdk_solutions_per_page, total_sdk_puzzles - start_i)
+                    sol_slice = get_sudoku_batch(
+                        selected_sudoku_type.value,
+                        selected_difficulty.value,
+                        count_on_sol,
+                        sdk_start_num + start_i,
+                        sdk_seed + start_i * 17,
+                        symmetric_clues,
+                        wordoku_word_val,
+                        custom_clues_val,
+                        sdk_title_template,
+                    )
                     page_img = render_sudoku_solution_page_image(
                         sol_slice,
                         active_sudoku_style,
@@ -2690,7 +2785,7 @@ with tab_sudoku:
                     )
                 else:
                     with sp_nav1:
-                        if "sdk_curr_puz_idx" not in st.session_state or st.session_state["sdk_curr_puz_idx"] > len(sudoku_puzzles):
+                        if "sdk_curr_puz_idx" not in st.session_state or st.session_state["sdk_curr_puz_idx"] > total_sdk_puzzles:
                             st.session_state["sdk_curr_puz_idx"] = 1
                         c_sp_p, c_sp_s, c_sp_n = st.columns([0.18, 0.64, 0.18], gap="small")
                         with c_sp_p:
@@ -2698,25 +2793,37 @@ with tab_sudoku:
                                 st.session_state["sdk_curr_puz_idx"] = max(1, st.session_state["sdk_curr_puz_idx"] - 1)
                                 st.rerun()
                         with c_sp_n:
-                            if st.button("▶", key="sdk_puz_next_btn", disabled=(st.session_state["sdk_curr_puz_idx"] >= len(sudoku_puzzles)), help="Next Puzzle"):
-                                st.session_state["sdk_curr_puz_idx"] = min(len(sudoku_puzzles), st.session_state["sdk_curr_puz_idx"] + 1)
+                            if st.button("▶", key="sdk_puz_next_btn", disabled=(st.session_state["sdk_curr_puz_idx"] >= total_sdk_puzzles), help="Next Puzzle"):
+                                st.session_state["sdk_curr_puz_idx"] = min(total_sdk_puzzles, st.session_state["sdk_curr_puz_idx"] + 1)
                                 st.rerun()
                         with c_sp_s:
                             sdk_selected_idx = st.selectbox(
                                 "Preview puzzle",
-                                range(1, len(sudoku_puzzles) + 1),
+                                range(1, total_sdk_puzzles + 1),
                                 index=st.session_state["sdk_curr_puz_idx"] - 1,
-                                format_func=lambda x: f"Page {x}: {sudoku_puzzles[x-1].title} ({sudoku_puzzles[x-1].difficulty_label})",
+                                format_func=lambda x: f"Puzzle #{sdk_start_num + x - 1}",
                                 label_visibility="collapsed",
                                 key="sdk_prev_puz_sel",
                             )
                             st.session_state["sdk_curr_puz_idx"] = sdk_selected_idx
 
-                    active_p = sudoku_puzzles[sdk_selected_idx - 1]
+                    start_i = sdk_selected_idx - 1
+                    single_slice = get_sudoku_batch(
+                        selected_sudoku_type.value,
+                        selected_difficulty.value,
+                        1,
+                        sdk_start_num + start_i,
+                        sdk_seed + start_i * 17,
+                        symmetric_clues,
+                        wordoku_word_val,
+                        custom_clues_val,
+                        sdk_title_template,
+                    )
+                    active_p = single_slice[0]
                     p_date_txt = None
                     if sdk_enable_date:
                         p_info = get_puzzle_date_info(
-                            sdk_selected_idx - 1,
+                            start_i,
                             sdk_date_cfg["start_date"],
                             progression=sdk_date_cfg["progression"],
                             format_choice=sdk_date_cfg["format_choice"],
@@ -2780,17 +2887,29 @@ with tab_sudoku:
                     if "100" in sdk_batch_choice
                     else (50 if "50" in sdk_batch_choice else (200 if "200" in sdk_batch_choice else 0))
                 )
-                total_sdk_pages = math.ceil(len(sudoku_puzzles) / sdk_puzzles_per_page)
+                total_sdk_pages = math.ceil(total_sdk_puzzles / sdk_puzzles_per_page)
                 if sdk_batch_size > 0 and total_sdk_pages > sdk_batch_size:
                     n_b = math.ceil(total_sdk_pages / sdk_batch_size)
                     st.caption(f"⚡ {total_sdk_pages} pages will be split into {n_b} ordered batches in a ZIP.")
 
                 if st.button("Generate Sudoku Bundle", type="primary", width="stretch", key="sdk_gen_btn"):
-                    sdk_bar = st.progress(0, text="Generating Sudoku export bundle...")
+                    sdk_bar = st.progress(0, text="Generating full Sudoku puzzle collection...")
                     out_dir_sdk = tempfile.mkdtemp(prefix="sudoku_studio_")
+                    with st.spinner(f"Generating all {total_sdk_puzzles} Sudoku puzzles and interior assets..."):
+                        full_sudoku_puzzles = get_sudoku_batch(
+                            selected_sudoku_type.value,
+                            selected_difficulty.value,
+                            total_sdk_puzzles,
+                            sdk_start_num,
+                            sdk_seed,
+                            symmetric_clues,
+                            wordoku_word_val,
+                            custom_clues_val,
+                            sdk_title_template,
+                        )
 
                     canva_p, sol_p, zip_p, pdf_bytes = build_sudoku_workbooks(
-                        sudoku_puzzles,
+                        full_sudoku_puzzles,
                         out_dir_sdk,
                         puzzles_per_page=sdk_puzzles_per_page,
                         solutions_per_page=sdk_solutions_per_page,
