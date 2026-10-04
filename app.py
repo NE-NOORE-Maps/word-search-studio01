@@ -906,6 +906,15 @@ def select_puzzle_words(item_chunk, all_words, puzzle_index, target_word_count):
     return [all_words[(start_offset + k) % len(all_words)] for k in range(target_word_count)]
 
 
+def get_ws_puzzle_title(theme, puzzle_num, total_puzzles=1):
+    raw_theme = (theme or "").strip()
+    is_themed = bool(raw_theme and raw_theme.lower() not in {"word search", "my theme"})
+    if is_themed:
+        # If it's a themed word search, the title of the page is the title of the theme
+        return raw_theme
+    return f"Word Search #{puzzle_num}" if total_puzzles > 1 else (raw_theme or "Word Search")
+
+
 @st.cache_data(show_spinner=False)
 def get_preview_wordsearch_slice(
     groups_dict,
@@ -944,7 +953,7 @@ def get_preview_wordsearch_slice(
         puzzle_words = select_puzzle_words(chunk, all_words, idx, words_per_page)
         local = cfg.model_copy(deep=True)
         local.seed = int(seed_val) + idx * 19
-        theme_title = theme if total_needed <= len(base_chunks) else f"{theme} #{idx + 1}"
+        theme_title = get_ws_puzzle_title(theme, idx + 1, total_needed)
         result.append(generate_reliably(puzzle_words, local, theme_title))
     return result
 
@@ -982,7 +991,7 @@ def get_puzzles(
         puzzle_words = select_puzzle_words(chunk, all_words, i, words_per_page)
         local = cfg.model_copy(deep=True)
         local.seed = int(seed_val) + i * 19
-        theme_title = theme if total_needed <= len(base_chunks) else f"{theme} #{i + 1}"
+        theme_title = get_ws_puzzle_title(theme, i + 1, total_needed)
         result.append(generate_reliably(puzzle_words, local, theme_title))
 
     return result
@@ -1580,7 +1589,8 @@ with tab_ws:
                             with c_wp_s:
                                 def _fmt_ws_page(x):
                                     th = base_chunks[(x - 1) % len(base_chunks)][0]
-                                    return f"Page {x}: {th}"
+                                    page_title = get_ws_puzzle_title(th, x, total_ws_puzzles)
+                                    return f"Page {x}: {page_title}"
                                 selected = st.selectbox(
                                     "Preview page",
                                     range(1, total_ws_puzzles + 1),

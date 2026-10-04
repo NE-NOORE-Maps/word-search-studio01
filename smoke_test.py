@@ -503,7 +503,41 @@ for p_idx in range(12):
     assert len(p_words) == 12, f"Expected 12 words on puzzle {p_idx+1}, got {len(p_words)}"
     all_sampled_words.update(p_words)
 assert len(all_sampled_words) == 14, f"Expected all 14 words to be utilized across 12 puzzles, got {len(all_sampled_words)}"
-print("ok Word Search 14-word input with 12 words/page and 12 puzzles verified: zero 2-word orphan pages, all 14 words utilized")
+# 14. Word Search: Themed Page Title Verification (title of page is title of theme)
+from app import get_ws_puzzle_title, get_puzzles
+assert get_ws_puzzle_title("Animals", 1, 12) == "Animals"
+assert get_ws_puzzle_title("Animals", 7, 12) == "Animals"
+assert get_ws_puzzle_title("Big Cats", 2, 50) == "Big Cats"
+assert get_ws_puzzle_title("Ocean", 1, 1) == "Ocean"
+
+# Multi-theme verification
+multi_puzzles = get_puzzles(
+    {"Big Cats": ["LION", "TIGER", "LEOPARD", "JAGUAR"], "Ocean": ["WHALE", "SHARK", "DOLPHIN", "OCTOPUS"]},
+    "medium",
+    4,
+    42,
+    grid_rows=10,
+    grid_cols=10,
+    target_count=2,
+)
+assert len(multi_puzzles) == 2
+assert multi_puzzles[0].theme == "Big Cats", f"Expected 'Big Cats', got {multi_puzzles[0].theme}"
+assert multi_puzzles[1].theme == "Ocean", f"Expected 'Ocean', got {multi_puzzles[1].theme}"
+
+# Single theme with target_count > 1 verification
+single_themed_12 = get_puzzles(
+    {"Animals": fourteen_words},
+    "medium",
+    12,
+    42,
+    grid_rows=12,
+    grid_cols=10,
+    target_count=12,
+)
+assert len(single_themed_12) == 12
+for p in single_themed_12:
+    assert p.theme == "Animals", f"Expected theme 'Animals', got '{p.theme}'"
+print("ok Themed Word Search page titles equal theme title verified across single & multi-theme books")
 
 print("ALL SMOKE TESTS PASSED SUCCESSFULLY!")
 
