@@ -492,7 +492,18 @@ with zipfile.ZipFile(canva_batch_p) as z:
     assert any("batch_01" in n for n in batch_names)
     assert any("batch_02" in n for n in batch_names)
     assert any("batch_03" in n for n in batch_names)
-print(f"ok Canva batch splitting verified: {len(batch_names)-1} batches generated and zipped with instructions")
+# 13. Word Search: 14 Words Input with 12 Words Per Page & 12 Target Puzzles Verification
+from app import get_base_word_chunks, select_puzzle_words
+fourteen_words = [f"ANIMAL_{i:02d}" for i in range(1, 15)]
+ws_chunks = get_base_word_chunks({"Animals": fourteen_words}, 12)
+assert len(ws_chunks) == 1, f"Expected 1 base chunk (not orphan 2-word chunk), got {len(ws_chunks)}"
+all_sampled_words = set()
+for p_idx in range(12):
+    p_words = select_puzzle_words(ws_chunks[0][1], ws_chunks[0][2], p_idx, 12)
+    assert len(p_words) == 12, f"Expected 12 words on puzzle {p_idx+1}, got {len(p_words)}"
+    all_sampled_words.update(p_words)
+assert len(all_sampled_words) == 14, f"Expected all 14 words to be utilized across 12 puzzles, got {len(all_sampled_words)}"
+print("ok Word Search 14-word input with 12 words/page and 12 puzzles verified: zero 2-word orphan pages, all 14 words utilized")
 
 print("ALL SMOKE TESTS PASSED SUCCESSFULLY!")
 

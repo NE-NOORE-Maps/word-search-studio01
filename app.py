@@ -878,16 +878,32 @@ def get_base_word_chunks(groups_dict, words_per_page):
     base_chunks = []
     for theme, words in groups_dict.items():
         cleaned = [w for w in words if len(w) >= 3]
-        chunks = [
-            cleaned[start : start + words_per_page]
-            for start in range(0, len(cleaned), words_per_page)
-            if cleaned[start : start + words_per_page]
-        ]
-        if len(chunks) > 1 and len(chunks[-1]) < words_per_page:
-            chunks = chunks[:-1]
-        for c in chunks:
-            base_chunks.append((theme, c))
+        if not cleaned:
+            continue
+        if len(cleaned) <= words_per_page:
+            base_chunks.append((theme, cleaned, cleaned))
+        else:
+            num_full_chunks = len(cleaned) // words_per_page
+            rem = len(cleaned) % words_per_page
+            # Only create an extra chunk if remainder has at least 4 words
+            # and is at least half of words_per_page
+            min_allowed = min(4, math.ceil(words_per_page * 0.5))
+            has_extra = (rem >= min_allowed) and (rem >= 4)
+            for i in range(num_full_chunks):
+                chunk = cleaned[i * words_per_page : (i + 1) * words_per_page]
+                base_chunks.append((theme, chunk, cleaned))
+            if has_extra:
+                rem_chunk = cleaned[num_full_chunks * words_per_page :]
+                base_chunks.append((theme, rem_chunk, cleaned))
     return base_chunks
+
+
+def select_puzzle_words(item_chunk, all_words, puzzle_index, target_word_count):
+    if not all_words or len(all_words) <= target_word_count:
+        return item_chunk
+    step = max(1, len(all_words) - target_word_count)
+    start_offset = (puzzle_index * step) % len(all_words)
+    return [all_words[(start_offset + k) % len(all_words)] for k in range(target_word_count)]
 
 
 @st.cache_data(show_spinner=False)
@@ -921,11 +937,15 @@ def get_preview_wordsearch_slice(
         idx = start_index + offset
         if idx >= total_needed:
             break
-        theme, chunk = base_chunks[idx % len(base_chunks)]
+        item = base_chunks[idx % len(base_chunks)]
+        theme = item[0]
+        chunk = item[1]
+        all_words = item[2] if len(item) > 2 else chunk
+        puzzle_words = select_puzzle_words(chunk, all_words, idx, words_per_page)
         local = cfg.model_copy(deep=True)
         local.seed = int(seed_val) + idx * 19
         theme_title = theme if total_needed <= len(base_chunks) else f"{theme} #{idx + 1}"
-        result.append(generate_reliably(chunk, local, theme_title))
+        result.append(generate_reliably(puzzle_words, local, theme_title))
     return result
 
 
@@ -955,11 +975,15 @@ def get_puzzles(
     result = []
     total_needed = target_count if (target_count and target_count > 0) else len(base_chunks)
     for i in range(total_needed):
-        theme, chunk = base_chunks[i % len(base_chunks)]
+        item = base_chunks[i % len(base_chunks)]
+        theme = item[0]
+        chunk = item[1]
+        all_words = item[2] if len(item) > 2 else chunk
+        puzzle_words = select_puzzle_words(chunk, all_words, i, words_per_page)
         local = cfg.model_copy(deep=True)
         local.seed = int(seed_val) + i * 19
         theme_title = theme if total_needed <= len(base_chunks) else f"{theme} #{i + 1}"
-        result.append(generate_reliably(chunk, local, theme_title))
+        result.append(generate_reliably(puzzle_words, local, theme_title))
 
     return result
 
